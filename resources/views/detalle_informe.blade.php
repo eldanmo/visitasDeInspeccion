@@ -1797,26 +1797,26 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <a href="{{ $informe->anexos_adicionales_plan_visita }}" target="_blank" class="flex items-center space-x-2">
+                    <a href="{{ $informe->plan_visita }}" target="_blank" class="flex items-center space-x-2" style="text-decoration:none;" >
                         <img src="{{ asset('images/download.svg') }}" alt="descargar" width="15px" height="15px"> Descargar plan de visita actual
                     </a>
                 </div>
                 <div class="mb-3">
-                    <label for="tipo_visita" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
-                    <select class="form-select form-control required_plan_visita" id="tipo_visita">
-                        <option value="">--Seleccione--</option>
-                        <option value="VIRTUAL">VIRTUAL</option>
-                        <option value="PRESENCIAL">PRESENCIAL</option>
-                        <option value="MIXTA">MIXTA</option>
+                    <label for="tipo_visita_modificada" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
+                    <select class="form-select form-control required_plan_visita_modificado" id="tipo_visita_modificada">
+                        <option value="" {{ $informe->tipo_visita == '' ? 'selected' : '' }}>--Seleccione--</option>
+                        <option value="VIRTUAL" {{ $informe->tipo_visita == 'VIRTUAL' ? 'selected' : '' }}>VIRTUAL</option>
+                        <option value="PRESENCIAL" {{ $informe->tipo_visita == 'PRESENCIAL' ? 'selected' : '' }}>PRESENCIAL</option>
+                        <option value="MIXTA" {{ $informe->tipo_visita == 'MIXTA' ? 'selected' : '' }}>MIXTA</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label for="enlace_plan_visita" class="col-form-label">Nuevo plan de visita</label>
-                    <input type="file" class="form-control required_plan_visita" id="enlace_plan_visita" name="enlace_plan_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                    <label for="enlace_plan_visita_modificado" class="col-form-label">Nuevo plan de visita</label>
+                    <input type="file" class="form-control" id="enlace_plan_visita_modificado" name="enlace_plan_visita_modificado" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 </div>
                 <div class="table-responsive" >
                     <label class="col-form-label">Documentos adicionales</label>
-                    <table class="table table-sm" id="tabla_adicionales_plan_visita">
+                    <table class="table table-sm" id="tabla_modificacion_adicionales_plan_visita">
                         <thead>
                             <tr class="text-center">
                                 <th class="table-primary">#</th>
@@ -1826,15 +1826,41 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="tr_documentos_adicionales_plan_visita">
+                            @php $counter = 1; @endphp
+                            @if($informe->anexos_adicionales_plan_visita)
+                                @foreach( json_decode($informe->anexos_adicionales_plan_visita) as $index => $anexo_adicional_antiguo_plan_visita )
+                                    @php $counter = $index+1; @endphp
+                                    <tr class="tr_documentos_modificado_adicionales_plan_visita">
+                                        <td>
+                                            <p class="text-center">{{$counter}}</p>
+                                        </td>
+                                        <td>
+                                            <label for="">{{$anexo_adicional_antiguo_plan_visita->fileName}}</label>
+                                        </td>
+                                        <td>
+                                            <a href="{{ $anexo_adicional_antiguo_plan_visita->fileUrl }}" target="_blank" class="flex items-center space-x-2" style="text-decoration:none;">
+                                                <img src="{{ asset('images/download.svg') }}" alt="descargar" width="15px" height="15px"> Descargar
+                                            </a>
+                                        </td>
+                                        <td class="text-center" >
+                                            <button type="button" class="btn btn-outline-danger" onclick="eliminarAnexo(this, '{{$anexo_adicional_antiguo_plan_visita->fileUrl}}', '{{$anexo_adicional_antiguo_plan_visita->fileName}}')">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            @endif
+                            <tr class="tr_documentos_modificado_adicionales_plan_visita">
                                 <td>
-                                    <p class="text-center">1</p>
+                                    <p class="text-center">{{$counter+1}}</p>
                                 </td>
                                 <td>
-                                    <input type="text" class="form-control" name="nombre_anexo_plan_visita">
+                                    <input type="text" class="form-control" name="nombre_anexo_plan_visita_modificado">
                                 </td>
                                 <td>
-                                    <input type="file" class="form-control" id="anexo_plan_visita" name="anexo_plan_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                    <input type="file" class="form-control" id="anexo_plan_visita_modificado" name="anexo_plan_visita_modificado" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                                 </td>
                                 <td class="text-center" >
                                     <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
@@ -1848,21 +1874,21 @@
                     </table>
                     <div class="d-grid gap-2 d-flex justify-content-end mb-2">
                         <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
-                            onclick="anadirRegistro('tabla_adicionales_plan_visita')">
+                            onclick="anadirRegistro('tabla_modificacion_adicionales_plan_visita')">
                             Añadir documento
                         </button>
                     </div>
                 </div>
                 <div class="mb-3 div_observaciones_envio_plan_visita">
-                    <label for="observaciones_envio_plan_visita" class="col-form-label">Observaciones</label>
-                    <textarea class="form-control" id="observaciones_envio_plan_visita"></textarea>
+                    <label for="observaciones_envio_plan_visita_modificado" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control" id="observaciones_envio_plan_visita_modificado"></textarea>
                 </div>
             </div>
 
             
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-success diagnosticoSubsanado" onclick="planVisita()">Enviar</button>
+                <button type="button" class="btn btn-success diagnosticoSubsanado" onclick="planVisitaModificado()">Enviar</button>
             </div>
         </div>
     </div>
@@ -1913,6 +1939,10 @@
                         <option value="No">No</option>
                     </select>
                 </div>
+                <div class="mb-3 div_observaciones_informacion_previa">
+                    <label for="observaciones_informacion_previa" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control required_revision_informacion_previa" id="observaciones_informacion_previa"></textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -1933,6 +1963,10 @@
                 <div class="mb-3">
                     <label for="ciclo_vida_requerimiento_informacion_adicional" class="col-form-label">Ciclo de vida del requerimiento enviado (*)</label>
                     <input type="text" class="form-control required_requerimiento_informacion_adicional" id="ciclo_vida_requerimiento_informacion_adicional" required>
+                </div>
+                <div class="mb-3 div_observaciones_requerimiento_informacion_adicional">
+                    <label for="observaciones_requerimiento_informacion_adicional" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control required_revision_requerimiento_informacion_adicional" id="observaciones_requerimiento_informacion_adicional"></textarea>
                 </div>
             </div>
             <div class="modal-footer">

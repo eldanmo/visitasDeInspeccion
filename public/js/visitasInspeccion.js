@@ -478,7 +478,6 @@ function buscarEntidad(tipo = '') {
 }
 
 function seleccionarEntidad(entidad = {}) {
-    console.log(entidad);
     $('#id').val(entidad.id);
     $('#codigo_entidad').val(entidad.codigo_entidad);
     $('#nit').val(entidad.nit);
@@ -615,7 +614,7 @@ function parametrosCreacionDiagnostico() {
     $('#fecha_fin_diagnostico').val(fecha_fin);
 }
 
-  const diasFestivosColombia = [
+const diasFestivosColombia = [
     '2024-01-01', 
     '2024-01-06', 
     '2024-03-25', 
@@ -635,19 +634,19 @@ function parametrosCreacionDiagnostico() {
     '2024-12-08', 
     '2024-12-25', 
     
-  ];
+];
   
-  function esDiaHabilColombia(fecha) {
+function esDiaHabilColombia(fecha) {
     const dia = fecha.getDay();
     return dia !== 0 && dia !== 6 && !esDiaFestivoColombia(fecha);
-  }
+}
   
-  function esDiaFestivoColombia(fecha) {
+function esDiaFestivoColombia(fecha) {
     const fechaString = fecha.toISOString().split('T')[0];
     return diasFestivosColombia.includes(fechaString);
-  }
+}
   
-  function sumarDiasHabiles(fechaString, dias) {
+function sumarDiasHabiles(fechaString, dias) {
     const fecha = new Date(fechaString);
     let contador = 0;
     while (contador < (dias+1)) {
@@ -660,18 +659,18 @@ function parametrosCreacionDiagnostico() {
     const month = ('0' + (fecha.getMonth() + 1)).slice(-2);
     const day = ('0' + fecha.getDate()).slice(-2);
     return `${year}-${month}-${day}`;
-  }
+}
 
-  function diasHabilesDiagnostico() {
+function diasHabilesDiagnostico() {
     let fecha_inicio_diagnostico = $('#fecha_inicio_diagnostico').val();
 
     const dias_diagnostico = $('#dias_diagnostico').val();
 
     let fecha_fin = sumarDiasHabiles(fecha_inicio_diagnostico, parseInt(dias_diagnostico));
     $('#fecha_fin_diagnostico').val(fecha_fin);
-  }
+}
 
-  function guardarDiagnostico() {
+function guardarDiagnostico() {
     var bandera = false;
 
     var labels = [];
@@ -806,9 +805,9 @@ function parametrosCreacionDiagnostico() {
     }).finally(() => {
         $('.btn-success').prop('disabled', false);
     });
-  }
+}
 
-  function guardar_observacion(accion) {
+function guardar_observacion(accion) {
     var bandera = false;
 
     let id = $('#id').val();
@@ -883,9 +882,9 @@ function parametrosCreacionDiagnostico() {
     }).finally(() => {
         $('.enviarObservacion').prop('disabled', false);
     });
-  }
+}
 
-  function finalizarDiagnostico() {
+function finalizarDiagnostico() {
     var bandera = false;
 
     let id = $('#id').val();
@@ -1014,9 +1013,9 @@ function parametrosCreacionDiagnostico() {
     }).finally(() => {
         $('.enviarObservacion').prop('disabled', false);
     });
-  }
+}
 
-  function asignarGrupoInspeccion() {
+function asignarGrupoInspeccion() {
     var bandera = false;
 
     let id = $('#id').val();
@@ -1096,9 +1095,9 @@ function parametrosCreacionDiagnostico() {
     }).finally(() => {
         $('.asignarGrupoInspeccion').prop('disabled', false);
     });
-  }
+}
 
-  function anadirInspector() {
+function anadirInspector() {
 
     var ultimoTr = $('#tabla_asignacion_grupo_inspeccion tbody tr:last').clone();
 
@@ -1107,12 +1106,12 @@ function parametrosCreacionDiagnostico() {
 
     $('#tabla_asignacion_grupo_inspeccion tbody').append(ultimoTr);
 
-  }
+}
 
-    function eliminarInspector(button) {
+function eliminarInspector(button) {
         var fila = $(button).closest('tr');
         fila.remove();
-    }
+}
 
 function resultadoRevisionDiagnostico() {
     let resultado_revision = $('#resultado_revision').val();
@@ -1618,6 +1617,7 @@ function confirmacionInformacionPreviaVisita() {
     let numero_informe = $('#numero_informe').val();
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
+    let observacion = $('#observaciones_informacion_previa').val();
 
     var url = `/confirmacion_informacion_previa_visita`;
     let id = $('#id').val();
@@ -1632,6 +1632,7 @@ function confirmacionInformacionPreviaVisita() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observacion', observacion);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -1803,6 +1804,7 @@ function finalizarRequerimientoInformacion() {
     let numero_informe = $('#numero_informe').val();
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
+    let observaciones = $('#observaciones_requerimiento_informacion_adicional').val();
 
     var url = `/finalizar_requerimiento_informacion`;
     let id = $('#id').val();
@@ -1817,6 +1819,7 @@ function finalizarRequerimientoInformacion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -4766,4 +4769,204 @@ function productoGeneradoSubsanacion(){
         $('#div_enlace_grabacion').hide();
         $('#div_tabla_adicionales_subsanacion_diagnostico').hide();
     }
+}
+
+function eliminarAnexo(button, url_archivo, nombre_archivo) {
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    let id = $('#id').val();
+    let numero_informe = $('#numero_informe').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let razon_social = $('#razon_social').val();
+    let url = `/eliminar_archivo`;
+
+    var fila = $(button).closest('tr');
+    var heads = {'X-CSRF-TOKEN': token}
+    var id_archivo = url_archivo.replace('https://drive.google.com/file/d/', '').replace('/view', '');
+
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nombre_archivo', nombre_archivo);
+    formData.append('id_archivo', id_archivo);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+
+    Swal.fire({
+        title: "¿Desea eliminar el anexo "+nombre_archivo+"?",
+        text: "No se podra recuperar el anexo",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Si, eliminar"
+      }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(url,{
+                method: 'POST',
+                headers: heads,
+                body: formData
+            }).then(response => {
+                if (!response.ok) {
+                  return response.json().then(data => {
+                    throw new Error(data.error || 'Error en la solicitud');
+                  });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const message = data.message;
+                Swal.fire('Éxito!', message, 'success').then(()=>{
+                    fila.remove();
+                });
+            })
+            .catch(error => {
+                Swal.fire('Error', error.message, 'error');
+            }).finally(() => {
+                $('.enviarObservacion').prop('disabled', false);
+            });
+        }
+      });
+
+}
+
+function planVisitaModificado() {
+    
+    var bandera = false;
+
+    var labels = [];
+    var anexos_plan_visita = [];
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let observacion = $('#observaciones_envio_plan_visita_modificado').val();
+
+    var url = `/guardar_plan_visita_modificado`;
+    let id = $('#id').val();
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observacion', observacion);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    var fileInput = document.getElementById('enlace_plan_visita_modificado');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('enlace_plan_visita', file);
+    }
+
+    $('.required_plan_visita_modificado').each(function() {
+        if ($(this).val() === '') {
+            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+            labels.push(label);
+            bandera = true;
+        } else {
+            formData.append($(this).attr('id'), $(this).val());
+        }
+    });
+
+    $('.tr_documentos_modificado_adicionales_plan_visita').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                    //labels.push('Nombre del archivo');
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                    //labels.push('Adjunto');
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_plan_visita.push(row);
+            }
+    })
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_plan_visita.length > 0 ) {
+        anexos_plan_visita.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.diagnosticoSubsanado').prop('disabled', true);
+
+    fetch(url, {
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Error en la solicitud');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(() => {
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.diagnosticoSubsanado').prop('disabled', false);
+    });
 }
