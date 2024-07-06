@@ -1702,6 +1702,8 @@ function resgistrarRespuestaEntidad() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let confirmacion_informacion_entidad = $('#confirmacion_informacion_entidad').val();
+    let anexos_adicionales = [];
+    let observaciones = $('#observaciones_respuesta_informacion_previa').val();
 
     var url = `/registro_respuesta_informacion_adicional`;
     let id = $('#id').val();
@@ -1716,6 +1718,7 @@ function resgistrarRespuestaEntidad() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -1742,6 +1745,40 @@ function resgistrarRespuestaEntidad() {
         }
     });
 
+    $('.tr_documentos_adicionales_respuesta_informacion_adicional').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+
+            if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+                labels.push('Todos los anexos deben tener nombre y adjunto');
+                bandera = true;
+            }
+    })
+
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
         for (var i = 0; i < labels.length; i++) {
@@ -1756,6 +1793,22 @@ function resgistrarRespuestaEntidad() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.enviarRequerimientoInformacion').prop('disabled', true);
@@ -1881,13 +1934,10 @@ function finalizarRequerimientoInformacion() {
 function necesidadVisita() {
     if ($('#necesidad_visita').val() === 'Si') {
         $('.div_ciclo_vida_plan_visita_ajustado').show();
-        $('.div_observaciones_valoracion').hide();
     }else if ($('#necesidad_visita').val() === 'No'){
         $('.div_ciclo_vida_plan_visita_ajustado').hide();
-        $('.div_observaciones_valoracion').show();
     }else{
         $('.div_ciclo_vida_plan_visita_ajustado').hide();
-        $('.div_observaciones_valoracion').hie();
     }
 }
 
@@ -1902,6 +1952,8 @@ function valoracionInformacionRecibida() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let necesidad_visita = $('#necesidad_visita').val();
+    let observaciones_valoracion = $('#observaciones_valoracion').val();
+    let anexos_adicionales = [];
 
     var url = `/valoracion_informacion_recibida`;
     let id = $('#id').val();
@@ -1916,6 +1968,7 @@ function valoracionInformacionRecibida() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones_valoracion', observaciones_valoracion);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -1931,30 +1984,54 @@ function valoracionInformacionRecibida() {
         return;
     }
 
-    $('.required_valoracion_informacion').each(function() {
-        if ($(this).val() === '') {
-            if (necesidad_visita === 'Si') {
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-                if (label === 'Ciclo de vida plan de visita ajustado') {
-                    labels.push(label);
-                    bandera = true;
-                }else{
-                    formData.append($(this).attr('id'), $(this).val());
-                }
-            }else if(necesidad_visita === 'No'){
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-                if (label === 'Observaciones') {
-                    labels.push(label);
-                    bandera = true;
-                } else{
-                    formData.append($(this).attr('id'), $(this).val());
-                }
-            }
-            
+    if (necesidad_visita === 'Si') {
+        var fileInput = document.getElementById('ciclo_vida_plan_visita_ajustado');
+        var file = fileInput.files[0];
+        if (file) {
+            formData.append('ciclo_vida_plan_visita_ajustado', file);
         } else {
-            formData.append($(this).attr('id'), $(this).val());
+            labels.push('Plan de visita ajustado');
+            bandera = true;
         }
+    }
+
+    $('.required_valoracion_informacion').each(function() {
+            formData.append($(this).attr('id'), $(this).val());
     });
+
+    $('.tr_documentos_validacion_informacion_recibida').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+
+            if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+                labels.push('Todos los anexos deben tener nombre y adjunto');
+                bandera = true;
+            }
+    })
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -1970,6 +2047,22 @@ function valoracionInformacionRecibida() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.enviarValoracionInformacion').prop('disabled', true);
@@ -2009,6 +2102,8 @@ function confirmacionVisita() {
     let numero_informe = $('#numero_informe').val();
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
+    let anexos_adicionales = [];
+    let observaciones = $('#observaciones_confirmacion_visita').val();
 
     var url = `/confirmacion_visita`;
     let id = $('#id').val();
@@ -2023,6 +2118,7 @@ function confirmacionVisita() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -2036,6 +2132,40 @@ function confirmacionVisita() {
             formData.append($(this).attr('id'), $(this).val());
         }
     });
+
+    $('.tr_documentos_adicionales_confirmar_visita').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+
+            if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+                labels.push('Todos los anexos deben tener nombre y adjunto');
+                bandera = true;
+            }
+    })
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -2052,6 +2182,23 @@ function confirmacionVisita() {
 
         return;
     }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
 
     $('.enviarConfirmacionVisita').prop('disabled', true);
 
@@ -2173,6 +2320,9 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/abrir_visita_inspeccion`;
+    let anexos_adicionales = [];
+    let documento_apertura_visita = $('#documento_apertura_visita').val();
+    let observaciones = $('#observaciones_abrir_visita').val();
 
     let grupo_inspeccion = [];
 
@@ -2190,7 +2340,7 @@ function abrirVisitaInspeccion() {
             });
             grupo_inspeccion.push(row);
     })
-    
+
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
     formData.append('id', id);
@@ -2201,9 +2351,10 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('documento_apertura_visita', documento_apertura_visita);
 
     var heads = {'X-CSRF-TOKEN': token}
-
 
     if (bandera) {
         var html = `<label>Todos los datos de la tabla del grupo de inspección deben ser diligenciados</label`;
@@ -2217,17 +2368,86 @@ function abrirVisitaInspeccion() {
         return;
     }
 
+    $('.tr_documentos_adicionales_abrir_visita').each(function () {
 
-    $('.required_apertura_visita').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
 
-            labels.push(label);
-            bandera = true;
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+
+            if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+                labels.push('Todos los anexos deben tener nombre y adjunto');
+                bandera = true;
+            }
+    })
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    if (documento_apertura_visita === 'Acta de apertura') {
+        var fileInput = document.getElementById('acta_apertura_visita');
+        var file = fileInput.files[0];
+        if (file) {
+            formData.append('acta_apertura_visita', file);
         } else {
-            formData.append($(this).attr('id'), $(this).val());
+            labels.push('Acta de apertura');
+            bandera = true;
         }
-    });
+    }else if(documento_apertura_visita === 'Grabación de apertura'){
+        let grabacion_apertura_visita = document.getElementById('grabacion_apertura_visita').value;
+        if (grabacion_apertura_visita) {
+            formData.append('grabacion_apertura_visita', grabacion_apertura_visita);
+        }else{
+            labels.push('Enlace de grabación');
+            bandera = true;
+        }
+    }else{
+        labels.push('¿Acta de apertura de la visita o grabación?');
+        bandera = true;
+    }
+
+    var fileInputCarta = document.getElementById('carta_salvaguarda');
+    var fileCarta = fileInputCarta.files[0];
+    if (fileCarta) {
+        formData.append('carta_salvaguarda', fileCarta);
+    } else {
+        labels.push('Carta salvaguarda');
+        bandera = true;
+    }
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -2355,8 +2575,10 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/cerrar_visita_inspeccion`;
-    let cierre_visita = [];
-    
+    let observaciones = $('#observaciones_cierre_visita').val();
+    let anexos_adicionales = [];
+    var labels = [];
+
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
     formData.append('id', id);
@@ -2366,28 +2588,69 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
     $('.tr_documentos_cierre_visita').each(function () {
 
         var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
             $(this).find('input[type="text"]').each(function() {
                 var key = $(this).attr('name');
-                var value = $(this).val();
-                row[key] = value;
-
-                if (value === '') {
-                    bandera = true;
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
                 }
             });
-            cierre_visita.push(row);
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+
+            if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+                labels.push('Todos los anexos deben tener nombre y adjunto');
+                bandera = true;
+            }
     })
 
-    formData.append('cierre_visita', JSON.stringify(cierre_visita));
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }else{
+        labels.push('Documentos del cierre de la visita ');
+        bandera = true;
+    }
 
-    if (bandera || cierre_visita.length < 1) {
-        var html = `<label>Todos los datos de las tablas deben ser diligenciados</label>`;
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
 
         Swal.fire({
           icon: "warning",
@@ -2423,6 +2686,102 @@ function abrirVisitaInspeccion() {
     }).finally(() => {
         $('.cerrarVisitaInspeccion').prop('disabled', false);
     });
+  }
+
+  function solicitarDiasAdicionales() {
+    var bandera = false;
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/solicitar_dias_adicionales`;
+    let observaciones = $('#observaciones_solicitud_dias_adicionales').val();
+    let dias = $('#dias').val();
+    var labels = [];
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('dias', dias);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    if (dias === '') {
+        labels.push('Cantidad de días adicionales');
+        bandera = true;
+    }else if(dias < 1){
+        labels.push('Cantidad de días adicionales debe ser mayor a 0');
+        bandera = true;
+    }
+
+    if (observaciones === '') {
+        labels.push('Observaciones ');
+        bandera = true;
+    }
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    $('.cerrarVisitaInspeccion').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.cerrarVisitaInspeccion').prop('disabled', false);
+    });
+  }
+
+  function abrirModalAprobarDiasAdicionalesCordinacion(id, observacion, dias) {
+    console.log(id, observacion, dias, 'h');
+    $('#modalConfirmarDiasAdicionales').modal('show');
+    $('#id_solicitud').val(id);
+
+    document.getElementById('dias_solicitados').innerHTML = dias;
+    document.getElementById('motivo_solicitud').innerHTML = observacion;
+    document.getElementById('dias_autorizar').innerHTML = dias;
+    
   }
 
   function registrarHallazgos() {
@@ -4969,4 +5328,19 @@ function planVisitaModificado() {
     }).finally(() => {
         $('.diagnosticoSubsanado').prop('disabled', false);
     });
+}
+
+function productoAbrirVisita() {
+    let documento_apertura_visita = document.getElementById('documento_apertura_visita').value;
+
+    if (documento_apertura_visita === 'Acta de apertura') {
+        document.getElementById('div_acta_apertura_visita').style.display = 'block';
+        document.getElementById('div_grabacion_apertura_visita').style.display = 'none';
+    }else if(documento_apertura_visita === 'Grabación de apertura'){
+        document.getElementById('div_acta_apertura_visita').style.display = 'none';
+        document.getElementById('div_grabacion_apertura_visita').style.display = 'block';
+    }else{
+        document.getElementById('div_acta_apertura_visita').style.display = 'none';
+        document.getElementById('div_grabacion_apertura_visita').style.display = 'none';
+    }
 }

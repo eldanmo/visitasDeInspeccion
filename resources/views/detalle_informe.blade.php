@@ -737,6 +737,38 @@
                     </div>
                 @endif
 
+                @php
+                    $modalDiasAdicionales = false;
+                @endphp
+
+                @if(($informe->etapa === "EN DESARROLLO DE VISITA DE INSPECCIÓN") && (Auth::user()->profile === 'Administrador' ) ) 
+                    <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalDiasAdicionales" style="cursor: pointer;" >
+                        <img src="{{ asset('images/days.svg') }}" width="30px" height="30px" alt="days">
+                        <p class="mt-1 mb-0">Solicitar días adicionales</p>
+                    </div>
+                    @php
+                        $modalDiasAdicionales = true;
+                    @endphp
+                @else
+                    @foreach($informe->grupoInspeccion as $grupo)
+                        @if(($informe->etapa === "EN DESARROLLO DE VISITA DE INSPECCIÓN") && 
+                            ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
+
+                            <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalDiasAdicionales" style="cursor: pointer;" >
+                                <img src="{{ asset('images/days.svg') }}" width="30px" height="30px" alt="days">
+                                <p class="mt-1 mb-0">Solicitar días adicionales</p>
+                            </div>
+                        @endif
+                    @endforeach
+                    @php
+                        $modalDiasAdicionales = true;
+                    @endphp
+                @endif
+
+                @php
+                    $modalConfirmarDiasAdicionales = false;
+                @endphp
+
             </div>
         </div>
     </div>
@@ -757,7 +789,10 @@
           <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-dias-habiles-transcurridos" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Días habiles transcurridos</button>
         @if($informe->etapa !== "DIAGNÓSTICO INTENDENCIA" && $informe->etapa !== "ASIGNACIÓN GRUPO DE INSPECCIÓN")
           <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-grupo-visita-inspeccion" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Grupo de inspección</button>
-        @endif        
+        @endif
+        @if(count($informe->solicitudDiasAdicionales) > 0)
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-solicitudes-dias-adicionales" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Solicitudes de días adicionales</button>
+        @endif         
         </div>
     </nav>
     <div class="tab-content" id="nav-tabContent">
@@ -1018,7 +1053,6 @@
                     <br>
                     <h3>Datos de la visita de inspección</h3>
                     <hr>
-                    <!-- Inicio de pruebas -->
 
                     @if($informe->tipo_visita)
                         <div class="col-6 col-sm-4 col-md-3">
@@ -1076,6 +1110,156 @@
                         </div>
                     @endif
 
+                    @if($informe->ciclo_informacion_adicional)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Ciclo de vida del requerimiento de información adicional a la entidad</b></label><br>
+                            <p>
+                                {{ $informe->ciclo_informacion_adicional }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->radicado_entrada_informacion_adicional)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado de entrada información adicional</b></label><br>
+                            <p>
+                                {{ $informe->radicado_entrada_informacion_adicional }}
+                            </p>
+                        </div>
+                    @else
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado de entrada información adicional</b></label><br>
+                            <p>
+                                La entidad no ha emitido respuesta
+                            </p>
+                        </div>
+                    @endif
+
+                    @if(json_decode($informe->anexos_adicionales_informacion_adicional_recibida))
+                        <div class="table-responsive">
+                            <label for=""><b> Anexos de la solicitud de información adicional</b></label>
+                            <table class="table table-sm">
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                    <th class="table-primary">ENLACE</th>
+                                </tr>
+                                @foreach( json_decode($informe->anexos_adicionales_informacion_adicional_recibida) as $index => $anexo_adicionale_informacion_adicional_recibida )
+                                    <tr class="text-center">
+                                        <td>
+                                            {{$index + 1}}
+                                        </td>
+                                        <td>
+                                            <p>                   
+                                                <span>{{ $anexo_adicionale_informacion_adicional_recibida->fileName }}</span>                       
+                                            </p>
+                                        </td>
+                                        <td>
+                                            <a href="{{ $anexo_adicionale_informacion_adicional_recibida->fileUrl }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                </svg>
+                                                <span>Abrir</span>
+                                            </a>  
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endif
+
+                    @if($informe->enlace_plan_visita_ajustado)
+                    
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Plan de visita ajustado</b></label><br>
+                            <p>
+                                @if ($informe->enlace_plan_visita_ajustado)
+                                    <a href="{{ $informe->enlace_plan_visita_ajustado }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                        </svg>
+                                        <span>Abrir</span>
+                                    </a>
+                                @endif
+                            </p>
+                        </div>
+                    @endif
+
+                    @if(json_decode($informe->anexos_plan_visita_ajustado))
+                        <div class="table-responsive">
+                            <label for=""><b> Anexos plan de visita ajustado</b></label>
+                            <table class="table table-sm">
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                    <th class="table-primary">ENLACE</th>
+                                </tr>
+                                @foreach( json_decode($informe->anexos_plan_visita_ajustado) as $index => $anexo_plan_visita_ajustado )
+                                    <tr class="text-center">
+                                        <td>
+                                            {{$index + 1}}
+                                        </td>
+                                        <td>
+                                            <p>                   
+                                                <span>{{ $anexo_plan_visita_ajustado->fileName }}</span>                       
+                                            </p>
+                                        </td>
+                                        <td>
+                                            <a href="{{ $anexo_plan_visita_ajustado->fileUrl }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                </svg>
+                                                <span>Abrir</span>
+                                            </a>  
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endif
+
+                    @if($informe->ciclo_vida_confirmacion_visita)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Ciclo de vida confirmación de la visita</b></label><br>
+                            <p>
+                                {{ $informe->ciclo_vida_confirmacion_visita }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if(json_decode($informe->anexos_confirmacion_plan_visita))
+                        <div class="table-responsive">
+                            <label for=""><b> Anexos plan de visita ajustado</b></label>
+                            <table class="table table-sm">
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                    <th class="table-primary">ENLACE</th>
+                                </tr>
+                                @foreach( json_decode($informe->anexos_confirmacion_plan_visita) as $index => $anexo_confirmacion_plan_visita )
+                                    <tr class="text-center">
+                                        <td>
+                                            {{$index + 1}}
+                                        </td>
+                                        <td>
+                                            <p>                   
+                                                <span>{{ $anexo_confirmacion_plan_visita->fileName }}</span>                       
+                                            </p>
+                                        </td>
+                                        <td>
+                                            <a href="{{ $anexo_confirmacion_plan_visita->fileUrl }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                </svg>
+                                                <span>Abrir</span>
+                                            </a>  
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endif
+
                     @if ($informe->enlace_apertura)
                         <div class="col-6 col-sm-4 col-md-3">
                             <label for=""><b>Acta de apertura de la visita o grabación</b></label><br>
@@ -1104,6 +1288,39 @@
                         </div>
                     @endif
 
+                    @if(json_decode($informe->anexos_adicionales_abrir_visita))
+                        <div class="table-responsive">
+                            <label for=""><b> Anexos plan de visita ajustado</b></label>
+                            <table class="table table-sm">
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                    <th class="table-primary">ENLACE</th>
+                                </tr>
+                                @foreach( json_decode($informe->anexos_adicionales_abrir_visita) as $index => $anexo_adicionale_abrir_visita )
+                                    <tr class="text-center">
+                                        <td>
+                                            {{$index + 1}}
+                                        </td>
+                                        <td>
+                                            <p>                   
+                                                <span>{{ $anexo_adicionale_abrir_visita->fileName }}</span>                       
+                                            </p>
+                                        </td>
+                                        <td>
+                                            <a href="{{ $anexo_adicionale_abrir_visita->fileUrl }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                </svg>
+                                                <span>Abrir</span>
+                                            </a>  
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </table>
+                        </div>
+                    @endif
+
                     @if($informe->fecha_inicio_visita)
                         <div class="col-6 col-sm-4 col-md-3">
                             <label for=""><b>Fecha de inicio de la visita</b></label><br>
@@ -1121,7 +1338,6 @@
                     @if ($informe->documentos_cierre_visita)
                         <div class="col-12 col-sm-12 col-md-12">
                             <label for=""><b>Documentos de cierre de visita de inspección</b></label><br>
-                            <hr>
                             <div class="table-responsive">
                                 <table class="table table-sm">
                                     <tr class="text-center">
@@ -1129,18 +1345,18 @@
                                         <th class="table-primary">NOMBRE DEL ARCHIVO</th>
                                         <th class="table-primary">ENLACE</th>
                                     </tr>
-                                    @foreach( json_decode($informe->documentos_cierre_visita) as $index => $documento_cierre )
+                                    @foreach( json_decode($informe->documentos_cierre_visita) as $index => $documento_cierre_visita )
                                         <tr class="text-center">
                                             <td>
                                                 {{$index + 1}}
                                             </td>
                                             <td>
                                                 <p>                   
-                                                    <span>{{ $documento_cierre->nombre_documento_cierre_visita }}</span>                       
+                                                    <span>{{ $documento_cierre_visita->fileName }}</span>                       
                                                 </p>
                                             </td>
                                             <td>
-                                                <a href="{{ $documento_cierre->enlace_documento_cierre_visita }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                <a href="{{ $documento_cierre_visita->fileUrl }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
                                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
                                                     </svg>
@@ -1349,7 +1565,7 @@
             </div>
         </div>
         <div class="tab-pane fade" id="nav-grupo-visita-inspeccion" role="tabpanel" aria-labelledby="nav-profile-tab">
-            <h4 class="mt-3 mb-3">Días habiles transcurridos</h4>
+            <h4 class="mt-3 mb-3">Grupo de inspección</h4>
             <hr>
             <div class="table-responsive">
                 <table class="table table-sm">
@@ -1379,6 +1595,47 @@
                                         </a>
                                         @endforeach
                                     @endif
+                                </td>
+                            </tr>
+                            @endforeach  
+                        @endif
+                </table>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="nav-solicitudes-dias-adicionales" role="tabpanel" aria-labelledby="nav-profile-tab">
+            <h4 class="mt-3 mb-3">Solicitudes de días adicionales</h4>
+            <hr>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <tr class="text-center">
+                        <th class="table-primary">#</th>
+                        <th class="table-primary">USUARIO</th>
+                        <th class="table-primary">DÍAS</th>
+                        <th class="table-primary">FECHA DE SOLICITUD</th>
+                        <th class="table-primary">ESTADO</th>
+                        <th class="table-primary">ACCIÓN</th>
+                    </tr>
+                        @if(isset($informe->solicitudDiasAdicionales))
+                            @foreach ($informe->solicitudDiasAdicionales as $index => $solicitud)
+                            <tr>
+                                <td class="text-center">{{ $index +1 }}</td>
+                                <td>{{ $solicitud->usuario->name }}</td>
+                                <td>{{ $solicitud->dias }}</td>
+                                <td>{{ $solicitud->observacion }}</td>
+                                <td>{{ $solicitud->estado }}</td>
+                                <td class="d-flex flex-column justify-content-center align-items-center">
+                                    
+                                    @if(($informe->etapa === "EN DESARROLLO DE VISITA DE INSPECCIÓN") && 
+                                        (Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Coordinador')
+                                        ) 
+                                        <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center" onclick="abrirModalAprobarDiasAdicionalesCordinacion('{{$solicitud->id}}','{{$solicitud->observacion}}','{{$solicitud->dias}}')" style="cursor: pointer;" >
+                                            <img src="{{ asset('images/approve.svg') }}" width="30px" height="30px" alt="approve">
+                                        </div>
+                                        @php
+                                            $modalConfirmarDiasAdicionales = true;
+                                        @endphp
+                                    @endif
+
                                 </td>
                             </tr>
                             @endforeach  
@@ -1978,7 +2235,7 @@
 </div>
 
 <div class="modal fade" id="modalRegistroRespuestaInformacionAdicional" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5" id="exampleModalLabel">Confirmación de información adicional por parte de la entidad solidaria</h1>
@@ -1997,6 +2254,49 @@
                     <label for="radicado_respuesta_entidad" class="col-form-label">Radicado de entrada de la respuesta (*)</label>
                     <input type="text" class="form-control required_confirmacion_informacion_entidad" id="radicado_respuesta_entidad" required>
                 </div>
+                <div class="table-responsive" >
+                    <label class="col-form-label">Documentos  adicionales</label>
+                    <table class="table table-sm" id="tabla_adicionales_respuesta_informacion_adicional">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="table-primary">#</th>
+                                <th class="table-primary">Nombre del archivo</th>
+                                <th class="table-primary">Adjunto</th>
+                                <th class="table-primary">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="tr_documentos_adicionales_respuesta_informacion_adicional">
+                                <td>
+                                    <p class="text-center">1</p>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control" name="nombre_anexo_respuesta_informacion_adicional">
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="anexo_respuesta_informacion_adicional" name="anexo_respuesta_informacion_adicional" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                        <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                            onclick="anadirRegistro('tabla_adicionales_respuesta_informacion_adicional')">
+                            Añadir documento
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3 div_observaciones_respuesta_informacion_previa">
+                    <label for="observaciones_respuesta_informacion_previa" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control required_revision_informacion_previa" id="observaciones_respuesta_informacion_previa"></textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -2007,7 +2307,7 @@
 </div>
 
 <div class="modal fade" id="modalValoracionInformacionRecibida" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5" id="exampleModalLabel">Valoración de la información recibida</h1>
@@ -2024,10 +2324,49 @@
                 </div>
                 <div class="mb-3 div_ciclo_vida_plan_visita_ajustado" style="display: none;" >
                     <label for="ciclo_vida_plan_visita_ajustado" class="col-form-label">Ciclo de vida plan de visita ajustado (*)</label>
-                    <input type="text" class="form-control required_valoracion_informacion" id="ciclo_vida_plan_visita_ajustado" required>
+                    <input type="file" class="form-control" id="ciclo_vida_plan_visita_ajustado" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 </div>
-                <div class="mb-3 div_observaciones_valoracion" style="display: none;">
-                    <label for="observaciones_valoracion" class="col-form-label">Observaciones (*)</label>
+                <div class="table-responsive" >
+                    <label class="col-form-label">Documentos adicionales</label>
+                    <table class="table table-sm" id="tabla_validacion_informacion_recibida">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="table-primary">#</th>
+                                <th class="table-primary">Nombre del archivo (*)</th>
+                                <th class="table-primary">Adjunto (*)</th>
+                                <th class="table-primary">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="tr_documentos_validacion_informacion_recibida">
+                                <td>
+                                    <p class="text-center">1</p>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control" name="nombre_anexo_validacion_informacion_recibida">
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="anexo_validacion_informacion_recibida" name="anexo_validacion_informacion_recibida" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                        <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                            onclick="anadirRegistro('tabla_validacion_informacion_recibida')">
+                            Añadir documento
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3 div_observaciones_valoracion">
+                    <label for="observaciones_valoracion" class="col-form-label">Observaciones</label>
                     <textarea class="form-control required_valoracion_informacion" id="observaciones_valoracion" required></textarea>
                 </div>
                 
@@ -2041,7 +2380,7 @@
 </div>
 
 <div class="modal fade" id="modalConfirmarVisita" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5" id="exampleModalLabel">Confirmar visita de inspección</h1>
@@ -2056,10 +2395,55 @@
                         <option value="No">No</option>
                     </select>
                 </div>
-                <div class="mb-3 div_ciclo_vida_plan_visita_ajustado" >
+                <div class="mb-3" >
                     <label for="ciclo_vida_confirmacion_visita" class="col-form-label">Ciclo de vida (*)</label>
                     <input type="text" class="form-control required_confirmacion_visita" id="ciclo_vida_confirmacion_visita" required>
                 </div>  
+                <div class="table-responsive" >
+                    <label class="col-form-label">Documentos  adicionales</label>
+                    <table class="table table-sm" id="tabla_adicionales_confirmar_visita">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="table-primary">#</th>
+                                <th class="table-primary">Nombre del archivo (*)</th>
+                                <th class="table-primary">Adjunto (*)</th>
+                                <th class="table-primary">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="tr_documentos_adicionales_confirmar_visita">
+                                <td>
+                                    <p class="text-center">1</p>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control" name="nombre_anexo_confirmar_visita">
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="anexo_confirmar_visita" name="anexo_confirmar_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                        <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                            onclick="anadirRegistro('tabla_adicionales_confirmar_visita')">
+                            Añadir documento
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="observaciones_confirmacion_visita" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control required_revision_confirmacion_visita" id="observaciones_confirmacion_visita"></textarea>
+                </div>
+
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -2099,84 +2483,144 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3" >
-                    <label for="apertura_visita" class="col-form-label">Enlace acta de apertura de la visita o grabación (*)</label>
-                    <input type="text" class="form-control required_apertura_visita" id="apertura_visita" required>
+                    <label for="documento_apertura_visita" class="col-form-label">¿Acta de apertura de la visita o grabación? (*)</label>
+                    <select name="documento_apertura_visita" id="documento_apertura_visita" class="form-control" onchange="productoAbrirVisita()" required>
+                        <option value="">--Seleccione--</option>
+                        <option value="Acta de apertura">Acta de apertura</option>
+                        <option value="Grabación de apertura">Grabación de apertura</option>
+                    </select>
+                </div>  
+                <div class="mb-3" style="display: none;" id="div_acta_apertura_visita" >
+                    <label for="apertura_visita" class="col-form-label">Acta de apertura (*)</label>
+                    <input type="file" class="form-control" id="acta_apertura_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                </div>  
+                <div class="mb-3" style="display: none;" id="div_grabacion_apertura_visita" >
+                    <label for="apertura_visita" class="col-form-label">Enlace de grabación (*)</label>
+                    <input type="text" class="form-control" id="grabacion_apertura_visita" required>
                 </div>  
                 <div class="mb-3" >
-                    <label for="carta_salvaguarda" class="col-form-label">Enlace carta salvaguarda (*)</label>
-                    <input type="text" class="form-control required_apertura_visita" id="carta_salvaguarda" required>
+                    <label for="carta_salvaguarda" class="col-form-label">Carta salvaguarda (*)</label>
+                    <input type="file" class="form-control" id="carta_salvaguarda" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 </div>  
-                <table class="table table-sm" id="tabla_asignacion_grupo_inspeccion_final">
-                    <thead>
-                        <tr class="text-center">
-                            <th class="table-primary">#</th>
-                            <th class="table-primary">Inspector</th>
-                            <th class="table-primary">Rol</th>
-                            <th class="table-primary">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($informe->grupoInspeccion as $index => $grupo)
-                            @if($grupo->rol === 'Redactor')
-                                <tr class="tr_grupo_inspeccion_final">
-                                    <td>
-                                        <p class="text-center">1</p>
-                                    </td>
-                                    <td>
-                                        <select class="form-select grupo_inspeccion" id="inspector_redactor" name="usuario">
-                                            <option value="">Seleccione</option>
-                                            @if(isset($usuariosTotales))
-                                                @foreach ($usuariosTotales as $index => $usuarioTotal)
-                                                    <option value="{{$usuarioTotal->id}}" {{ $grupo->id_usuario == $usuarioTotal->id ? 'selected' : '' }}>{{$usuarioTotal->name}}</option>
-                                                @endforeach  
-                                            @endif
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <select class="form-select grupo_inspeccion" id="inspector_rol_redactor" name="rol" disabled>
-                                            <option value="Redactor">Redactor</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                    </td>
-                                </tr>
-                            @elseif($grupo->rol === 'Inspector')
-                                <tr class="tr_grupo_inspeccion_final">
-                                    <td>
-                                        <p class="text-center">{{$index}}</p>
-                                    </td>
-                                    <td>
-                                        <select class="form-select grupo_inspeccion" name="usuario">
-                                            <option value="">Seleccione</option>
-                                            @if(isset($usuariosTotales))
-                                                @foreach ($usuariosTotales as $index => $usuarioTotal)
-                                                    <option value="{{$usuarioTotal->id}}" {{ $grupo->id_usuario == $usuarioTotal->id ? 'selected' : '' }}>{{$usuarioTotal->name}}</option>
-                                                @endforeach  
-                                            @endif
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <select class="form-select grupo_inspeccion" name="rol">
-                                            <option value="Inspector">Inspector</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                            @endif
-                        @endforeach  
-                    </tbody>
-                </table>
-                <div class="d-grid gap-2 d-flex justify-content-end">
-                    <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
-                        onclick="anadirInspectorFinal()">
-                        Añadir inspector
-                    </button>
+                <div class="table-responsive" >
+                    <label class="col-form-label">Grupo de inspección</label>
+                    <table class="table table-sm" id="tabla_asignacion_grupo_inspeccion_final">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="table-primary">#</th>
+                                <th class="table-primary">Inspector</th>
+                                <th class="table-primary">Rol</th>
+                                <th class="table-primary">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($informe->grupoInspeccion as $index => $grupo)
+                                @if($grupo->rol === 'Redactor')
+                                    <tr class="tr_grupo_inspeccion_final">
+                                        <td>
+                                            <p class="text-center">1</p>
+                                        </td>
+                                        <td>
+                                            <select class="form-select grupo_inspeccion" id="inspector_redactor" name="usuario">
+                                                <option value="">Seleccione</option>
+                                                @if(isset($usuariosTotales))
+                                                    @foreach ($usuariosTotales as $index => $usuarioTotal)
+                                                        <option value="{{$usuarioTotal->id}}" {{ $grupo->id_usuario == $usuarioTotal->id ? 'selected' : '' }}>{{$usuarioTotal->name}}</option>
+                                                    @endforeach  
+                                                @endif
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select class="form-select grupo_inspeccion" id="inspector_rol_redactor" name="rol" disabled>
+                                                <option value="Redactor">Redactor</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                        </td>
+                                    </tr>
+                                @elseif($grupo->rol === 'Inspector')
+                                    <tr class="tr_grupo_inspeccion_final">
+                                        <td>
+                                            <p class="text-center">{{$index}}</p>
+                                        </td>
+                                        <td>
+                                            <select class="form-select grupo_inspeccion" name="usuario">
+                                                <option value="">Seleccione</option>
+                                                @if(isset($usuariosTotales))
+                                                    @foreach ($usuariosTotales as $index => $usuarioTotal)
+                                                        <option value="{{$usuarioTotal->id}}" {{ $grupo->id_usuario == $usuarioTotal->id ? 'selected' : '' }}>{{$usuarioTotal->name}}</option>
+                                                    @endforeach  
+                                                @endif
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select class="form-select grupo_inspeccion" name="rol">
+                                                <option value="Inspector">Inspector</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endif
+                            @endforeach  
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 d-flex justify-content-end">
+                        <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                            onclick="anadirInspectorFinal()">
+                            Añadir inspector
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive" >
+                    <label class="col-form-label">Documentos  adicionales</label>
+                    <table class="table table-sm" id="tabla_adicionales_abrir_visita">
+                        <thead>
+                            <tr class="text-center">
+                                <th class="table-primary">#</th>
+                                <th class="table-primary">Nombre del archivo (*)</th>
+                                <th class="table-primary">Adjunto (*)</th>
+                                <th class="table-primary">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="tr_documentos_adicionales_abrir_visita">
+                                <td>
+                                    <p class="text-center">1</p>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control" name="nombre_anexo_abrir_visita">
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="anexo_abrir_visita" name="anexo_abrir_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                        <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                            onclick="anadirRegistro('tabla_adicionales_abrir_visita')">
+                            Añadir documento
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3 div_observaciones_abrir_visita">
+                    <label for="observaciones_abrir_visita" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control required_revision_abrir_visita" id="observaciones_abrir_visita"></textarea>
                 </div>
                 
             </div>
@@ -2213,10 +2657,10 @@
                                     <p class="text-center">1</p>
                                 </td>
                                 <td>
-                                    <input type="text" class="form-control" name="nombre_documento_cierre_visita">
+                                    <input type="text" class="form-control" id="nombre_documento_cierre_visita" name="nombre_documento_cierre_visita">
                                 </td>
                                 <td>
-                                    <input type="text" class="form-control" name="enlace_documento_cierre_visita">
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita" name="enlace_documento_cierre_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                                 </td>
                                 <td class="text-center" >
                                     <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
@@ -2235,6 +2679,10 @@
                         </button>
                     </div>
                 </div>  
+                <div class="mb-3 div_observaciones_cierre_visita">
+                    <label for="observaciones_cierre_visita" class="col-form-label">Observaciones</label>
+                    <textarea class="form-control" id="observaciones_cierre_visita"></textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
@@ -3035,6 +3483,78 @@
         </div>
     </div>
 </div>
+
+@if($modalDiasAdicionales)
+    <div class="modal fade" id="modalDiasAdicionales" tabindex="-1" aria-labelledby="buscarEntidadLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buscarEntidadLabel">Solicitar días adicionales para cerrar la visita de inspección</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body mb-3">
+                    <div class="mb-3 div_dias_adicionales">
+                        <label class="form-label">Cantidad de días adicionales (*)
+                        </label>
+                        <input type="number" class="form-control" name="dias" id="dias" required min="1" >
+                    </div>
+                    <div class="mb-3 div_observaciones_solicitud_dias_adicionales">
+                        <label for="observaciones_solicitud_dias_adicionales" class="col-form-label">Observaciones (*)</label>
+                        <textarea class="form-control required_revision_solicitud_dias_adicionales" id="observaciones_solicitud_dias_adicionales"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary enviarObservacion" onclick="solicitarDiasAdicionales()">Solicitar días</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
+@if($modalConfirmarDiasAdicionales)
+    <div class="modal fade" id="modalConfirmarDiasAdicionales" tabindex="-1" aria-labelledby="buscarEntidadLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buscarEntidadLabel">Adicionar días adicionales para cerrar la visita de inspección</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body mb-3">
+                    <div class="mb-3 div_dias_adicionales">
+                        <label class="form-label"><b>Cantidad de días solicitados</b></label><br>
+                        <label class="form-label" id="dias_solicitados"></label>
+                        <input type="hidden" id="id_solicitud" >
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><b>Motivo de la solicitud</b> </label>
+                        <label class="form-label" id="motivo_solicitud"></label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><b>Confirmar / rechazar solicitud (*)</b> </label>
+                        <select name="confirmar_rechazar_solicitud" id="confirmar_rechazar_solicitud" class="form-control" onchange="confirmarRechazarSolicitudDiasAdicionales()" >
+                            <option value="">--Seleccionar--</option>
+                            <option value="Confirmar">Confirmar</option>
+                            <option value="Rechazar">Rechazar</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 div_dias_adicionales" style="display: none;">
+                        <label class="form-label"><b>Cantidad de días adicionales (*)</b></label>
+                        <input type="number" class="form-control" name="dias_autorizar" id="dias_autorizar" required min="1" >
+                    </div>
+                    <div class="mb-3 div_observaciones_solicitud_dias_adicionales">
+                        <label for="observaciones_solicitud_dias_adicionales" class="col-form-label"><b>Observaciones (*)</b></label>
+                        <textarea class="form-control required_revision_solicitud_dias_adicionales" id="observaciones_solicitud_dias_adicionales"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary enviarObservacion" onclick="confirmarDiasAdicionales()">Solicitar días</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 
 
 </x-app-layout>

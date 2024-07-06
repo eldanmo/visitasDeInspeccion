@@ -54,8 +54,16 @@ return new class extends Migration
             $table->text('archivos')->nullable();
             $table->text('anexos_adicionales_plan_visita')->nullable();
             $table->string('enlace_subsanacion_diagnostico')->nullable();
+            $table->string('ciclo_informacion_adicional')->nullable();
+            $table->string('radicado_entrada_informacion_adicional')->nullable();
+            $table->string('enlace_plan_visita_ajustado')->nullable();
+            $table->text('anexos_plan_visita_ajustado')->nullable();
             $table->text('anexos_subsanacion_diagnostico')->nullable();
+            $table->text('anexos_adicionales_informacion_adicional_recibida')->nullable();
+            $table->text('anexos_adicionales_abrir_visita')->nullable();
+            $table->text('anexos_confirmacion_plan_visita')->nullable();
             $table->string('usuario_creacion');
+            $table->string('ciclo_vida_confirmacion_visita');
             $table->text('usuario_actual');
             $table->timestamps();
         });

@@ -8,6 +8,7 @@ use App\Models\HistorialVisitas;
 use App\Models\ConteoDias;
 use App\Models\DiaNoLaboral;
 use App\Models\Entidad;
+use App\Models\SolicitudDiaAdicional;
 use Illuminate\Support\Facades\Auth;
 
 use Illuminate\Http\Request;
@@ -321,6 +322,7 @@ class DiagnosticoController extends Controller
                                     ->with('usuario')
                                     ->with('usuarioDiagnostico')
                                     ->with('grupoInspeccion.usuarioAsignado')
+                                    ->with('solicitudDiasAdicionales.usuario')
                                     ->first();
         $usuarios = User::orderby('name', 'ASC')->get();
         return view('detalle_informe', [
@@ -571,7 +573,7 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'codigo' => 'required',
-                'sigla' => 'required',
+                'sigla' => '',
                 'observacion' => '',
             ]);
 
@@ -1144,7 +1146,6 @@ class DiagnosticoController extends Controller
                     return response()->json(['error' => $response->json()['error']['message']], 500);
                 }
 
-                
                 if ($banderaAnexos) {
                     foreach ($uploadedFiles as $index =>$newFile) {
 
@@ -1373,7 +1374,7 @@ class DiagnosticoController extends Controller
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'observacion' => 'sometimes|string',
+                'observacion' => 'nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1512,7 +1513,7 @@ class DiagnosticoController extends Controller
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'observaciones' => 'sometimes|string',
+                'observaciones' => 'nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1555,9 +1556,9 @@ class DiagnosticoController extends Controller
 
                 $successMessage = 'Se registro el requerimiento de información adicional de la visita de inspección';
 
-
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
+                $visita_inspeccion->ciclo_informacion_adicional = $validatedData['ciclo_vida_requerimiento_informacion_adicional'];
                 $visita_inspeccion->save();
 
 
@@ -1572,11 +1573,11 @@ class DiagnosticoController extends Controller
         }
     }
 
-    public function registro_respuesta_informacion_adicional(Request $request){
-
+    public function registro_respuesta_informacion_adicional(Request $request)
+    {
         try {
-        $proxima_etapa = '';
-        $usuarios = [];
+            $proxima_etapa = '';
+            $usuarios = [];
 
             $validatedData = $request->validate([
                 'id' => 'required',
@@ -1588,62 +1589,123 @@ class DiagnosticoController extends Controller
                 'nit' => 'required',
                 'confirmacion_informacion_entidad' => 'required',
                 'radicado_respuesta_entidad' => 'required_if:confirmacion_informacion_entidad,Si',
+                'observaciones' => 'nullable|string',
+                'anexo_respuesta_informacion_adicional.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_respuesta_informacion_adicional.*' => 'string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
-                                                    ->with('etapaProceso')
-                                                    ->first();
+                ->with('etapaProceso')
+                ->first();
 
-            if($visita_inspeccion->etapa !== $validatedData['etapa']){
+            if ($visita_inspeccion->etapa !== $validatedData['etapa']) {
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
-            }else {
+            } else {
+                $banderaAnexos = false;
+
+                if ($request->file('anexo_respuesta_informacion_adicional')) {
+                    $uploadedFiles = $request->file('anexo_respuesta_informacion_adicional');
+                    $fileNames = $request->input('nombre_anexo_respuesta_informacion_adicional');
+                    $banderaAnexos = true;
+                }
+
+                $accessToken = auth()->user()->google_token;
+                $folderId = $visita_inspeccion->carpeta_drive;
+                $anexos_adicionales = [];
+
+                if ($banderaAnexos) {
+                    foreach ($uploadedFiles as $index => $newFile) {
+                        $uniqueCode = Str::random(8);
+                        $fecha = date('Ymd');
+
+                        if ($fileNames[$index]) {
+                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
+                        } else {
+                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
+                        }
+
+                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+
+                        $metadata = [
+                            'name' =>  $newFileName,
+                            'parents' => [$folderId],
+                        ];
+
+                        $responseAnexos = Http::withToken($accessToken)
+                            ->attach(
+                                'metadata',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($newFile),
+                                $newFileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+
+                        if ($responseAnexos->successful()) {
+                            $file = $responseAnexos->json();
+                            $fileId = $file['id'];
+                            $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
+
+                            $anexos_adicionales[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
+                        } else {
+                            if (strpos($responseAnexos, 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
+                        }
+                    }
+                }
 
                 $proxima_etapa = 'VALORACIÓN DE LA INFORMACIÓN RECIBIDA';
 
                 $catidad_dias_etapa = Parametro::select('dias')
-                        ->where('estado', $proxima_etapa)
-                        ->first();
+                    ->where('estado', $proxima_etapa)
+                    ->first();
 
                 if ($catidad_dias_etapa->dias > 0) {
                     $estado_etapa = 'VIGENTE';
-                }else{
+                } else {
                     $estado_etapa = $validatedData['estado_etapa'];
                 }
 
                 if ($validatedData['confirmacion_informacion_entidad'] === 'Si') {
-                    $asunto_email = 'Valoración de información de la visita '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'Realizar la valoración de la información de la visita '. $validatedData['numero_informe'],
-                                                'mensaje' => 'Debe realizar la valoración de información de la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                                        $validatedData['nit'] ];
+                    $asunto_email = 'Valoración de información de la visita ' . $validatedData['numero_informe'];
+                    $datos_adicionales = [
+                        'numero_informe' => 'Realizar la valoración de la información de la visita ' . $validatedData['numero_informe'],
+                        'mensaje' => 'Debe realizar la valoración de información de la visita ' . $validatedData['numero_informe'] . ' a la entidad ' . $validatedData['razon_social'] . ' identificada con el nit ' .
+                            $validatedData['nit']
+                    ];
 
-                    $this->historialInformes($validatedData['id'], 'REGISTRO DE INFORMACIÓN ADICIONAL POR PARTE DE LA ENTIDAD SOLIDARIA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['radicado_respuesta_entidad'], NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'REGISTRO DE INFORMACIÓN ADICIONAL POR PARTE DE LA ENTIDAD SOLIDARIA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], $validatedData['radicado_respuesta_entidad'], NULL, NULL, '', NULL);
 
                     $successMessage = 'Se registro la respuesta emitida por parte de la entidad solidaria';
-                    
-                }elseif ($validatedData['confirmacion_informacion_entidad'] === 'No') {
-                    $asunto_email = 'La entidad solidaria no respondio al requerimiento de información adicional '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'La entidad solidaria de la visita '. $validatedData['numero_informe']. ' no respondio al requerimiento de información adicional',
-                                                'mensaje' => 'La entidad solidaria '. $validatedData['razon_social'] . ' identificada con el nit '.$validatedData['nit']. ' de la visita '. $validatedData['numero_informe'] . ' no dio respuesta al requerimiento de información adicional,
-                                                por favor ingresar a la plataforma y confirmar si se realizará la visita de inspección.'];
-                    
-                    $this->historialInformes($validatedData['id'], 'REGISTRO DE NO RESPUESTA POR PARTE DE LA ENTIDAD SOLIDARIA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                } elseif ($validatedData['confirmacion_informacion_entidad'] === 'No') {
+                    $asunto_email = 'La entidad solidaria no respondio al requerimiento de información adicional ' . $validatedData['numero_informe'];
+                    $datos_adicionales = [
+                        'numero_informe' => 'La entidad solidaria de la visita ' . $validatedData['numero_informe'] . ' no respondio al requerimiento de información adicional',
+                        'mensaje' => 'La entidad solidaria ' . $validatedData['razon_social'] . ' identificada con el nit ' . $validatedData['nit'] . ' de la visita ' . $validatedData['numero_informe'] . ' no dio respuesta al requerimiento de información adicional, por favor ingresar a la plataforma y confirmar si se realizará la visita de inspección.'
+                    ];
+
+                    $this->historialInformes($validatedData['id'], 'REGISTRO DE NO RESPUESTA POR PARTE DE LA ENTIDAD SOLIDARIA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                     $successMessage = 'Se registro que la entidad solidaria no emitio resuesta';
                 }
 
-                
-
                 $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
-                                            ->where('rol', 'Lider de visita')
-                                            ->where('estado', 'ACTIVO')
-                                            ->first();
+                    ->where('rol', 'Lider de visita')
+                    ->where('estado', 'ACTIVO')
+                    ->first();
 
                 $usuario_lider_visita = User::where('id', $usuario_lider_visita->id_usuario)
-                                            ->first();
+                    ->first();
 
-                $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
-                    
+                $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);
+
                 $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
                 $usuariosSinDuplicados = collect($usuarios)->unique('id');
@@ -1651,8 +1713,9 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
+                $visita_inspeccion->anexos_adicionales_informacion_adicional_recibida = json_encode($anexos_adicionales);
+                $visita_inspeccion->radicado_entrada_informacion_adicional = $validatedData['radicado_respuesta_entidad'];
                 $visita_inspeccion->save();
-
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -1661,10 +1724,14 @@ class DiagnosticoController extends Controller
             }
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
+            if (strpos($errorMessage, 'Expected OAuth 2 access token') !== false) {
+                auth()->logout();
+                return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+            }
             return response()->json(['error' => $errorMessage], 500);
         }
     }
-    
+
     public function valoracion_informacion_recibida(Request $request){
 
         try {
@@ -1681,7 +1748,9 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'ciclo_vida_plan_visita_ajustado' => '',
-                'observaciones_valoracion' => '',
+                'observaciones_valoracion' => 'nullable',
+                'anexo_validacion_informacion_recibida.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_validacion_informacion_recibida.*' => 'nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1692,6 +1761,114 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $banderaAnexos = false;
+                $banderaPlanVisitaAjustado = false;
+
+                if ($request->file('anexo_validacion_informacion_recibida')) {
+                    $uploadedFiles = $request->file('anexo_validacion_informacion_recibida');
+                    $fileNames = $request->input('nombre_anexo_validacion_informacion_recibida');
+                    $banderaAnexos = true;
+                }
+
+                $accessToken = auth()->user()->google_token;
+                $folderId = $visita_inspeccion->carpeta_drive;
+                $anexos_adicionales = [];
+
+                if ($request->hasFile('ciclo_vida_plan_visita_ajustado')) {
+                    $banderaPlanVisitaAjustado = true;
+                }
+
+                if($banderaPlanVisitaAjustado){
+    
+                    $uniqueCode = Str::random(8);
+                    $fecha = date('Ymd');
+                    $nameFormat = str_replace(' ', '_', $validatedData['ciclo_vida_plan_visita_ajustado']->getClientOriginalName());
+    
+                    $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+    
+                    $filePath = $request->file('ciclo_vida_plan_visita_ajustado')->getRealPath();
+                    $fileName = $newFileName;
+    
+                    $metadata = [
+                        'name' =>  $fileName,
+                        'parents' => [$folderId],
+                    ];
+    
+                    $response = Http::withToken($accessToken)
+                            ->attach(
+                                'data',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($filePath),
+                                $fileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+    
+                    if ($response->successful()) {
+                        $file = $response->json();
+                        $fileId = $file['id'];
+                        $fileUrl = 'https://drive.google.com/file/d/' . $fileId . '/view';
+                    } else {
+                        if (strpos($response, 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response->json()['error']['message']], 500);
+                    }
+
+                    $visita_inspeccion->enlace_plan_visita_ajustado = $fileUrl;
+                }
+
+                if ($banderaAnexos) {
+                    foreach ($uploadedFiles as $index => $newFile) {
+                        $uniqueCode = Str::random(8);
+                        $fecha = date('Ymd');
+
+                        if ($fileNames[$index]) {
+                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
+                        } else {
+                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
+                        }
+
+                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+
+                        $metadata = [
+                            'name' =>  $newFileName,
+                            'parents' => [$folderId],
+                        ];
+
+                        $responseAnexos = Http::withToken($accessToken)
+                            ->attach(
+                                'metadata',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($newFile),
+                                $newFileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+
+                        if ($responseAnexos->successful()) {
+                            $file = $responseAnexos->json();
+                            $fileId = $file['id'];
+                            $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
+
+                            $anexos_adicionales[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
+                        } else {
+                            if (strpos($responseAnexos, 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
+                        }
+                    }
+                }
 
                 $proxima_etapa = 'CONFIRMACIÓN DE VISITA DE INSPECCIÓN';
 
@@ -1711,10 +1888,10 @@ class DiagnosticoController extends Controller
                     $datos_adicionales = ['numero_informe' => 'Confirmar visita de inspección '. $validatedData['numero_informe'],
                                                 'mensaje' => 'Se ha realizado la valoración de la información por parte del lider de la visita, para la visita de inspección '. 
                                                 $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                                                $validatedData['nit'] . ' para la cual se actualizó el plan de visita que se puede consultar en eSigna con el ciclo de vida '.$validatedData['ciclo_vida_plan_visita_ajustado']. 
+                                                $validatedData['nit'] . ' para la cual se actualizó el plan de visita que se puede consultar en '.$fileUrl. 
                                                 '. Se requiere que ingrese a la plataforma y confirme si se realizará la visita de inspección'];
 
-                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['ciclo_vida_plan_visita_ajustado'], NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones_valoracion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 }elseif($validatedData['necesidad_visita'] === 'No'){
                     $asunto_email = 'Confirmar visita de inspección '.$validatedData['numero_informe'];
@@ -1743,8 +1920,8 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
+                $visita_inspeccion->anexos_plan_visita_ajustado = json_encode($anexos_adicionales);
                 $visita_inspeccion->save();
-
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -1758,7 +1935,6 @@ class DiagnosticoController extends Controller
     }
 
     public function confirmacion_visita(Request $request){
-
         try {
         $proxima_etapa = '';
         $usuarios = [];
@@ -1773,6 +1949,9 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'ciclo_vida_confirmacion_visita' => 'required',
+                'observaciones' => 'nullable|string',
+                'anexo_confirmar_visita.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_confirmar_visita.*' => 'nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1783,6 +1962,65 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $banderaAnexos = false;
+
+                if ($request->file('anexo_confirmar_visita')) {
+                    $uploadedFiles = $request->file('anexo_confirmar_visita');
+                    $fileNames = $request->input('nombre_anexo_confirmar_visita');
+                    $banderaAnexos = true;
+                }
+
+                $accessToken = auth()->user()->google_token;
+                $folderId = $visita_inspeccion->carpeta_drive;
+                $anexos_adicionales = [];
+
+                if ($banderaAnexos) {
+                    foreach ($uploadedFiles as $index => $newFile) {
+                        $uniqueCode = Str::random(8);
+                        $fecha = date('Ymd');
+
+                        if ($fileNames[$index]) {
+                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
+                        } else {
+                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
+                        }
+
+                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+
+                        $metadata = [
+                            'name' =>  $newFileName,
+                            'parents' => [$folderId],
+                        ];
+
+                        $responseAnexos = Http::withToken($accessToken)
+                            ->attach(
+                                'metadata',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($newFile),
+                                $newFileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+
+                        if ($responseAnexos->successful()) {
+                            $file = $responseAnexos->json();
+                            $fileId = $file['id'];
+                            $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
+
+                            $anexos_adicionales[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
+                        } else {
+                            if (strpos($responseAnexos, 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
+                        }
+                    }
+                }
 
                 if ($validatedData['confirmacion_necesidad_visita'] === 'No') {
                     $proxima_etapa = 'EN VERIFICACIÓN DE LOS CONTENIDOS FINALES DEL EXPEDIENTE';
@@ -1804,7 +2042,7 @@ class DiagnosticoController extends Controller
                     
                     $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
-                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE QUE NO ES NECESARIA LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['ciclo_vida_confirmacion_visita'], NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE QUE NO ES NECESARIA LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], $validatedData['ciclo_vida_confirmacion_visita'], NULL, NULL, '', NULL);
 
                     $successMessage = 'Se actualizó la visita correctamente';
 
@@ -1829,7 +2067,7 @@ class DiagnosticoController extends Controller
                     
                     $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
-                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['ciclo_vida_confirmacion_visita'], NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], $validatedData['ciclo_vida_confirmacion_visita'], NULL, NULL, '', NULL);
 
                     $successMessage = 'Se envió la soliditud de apertura de la visita correctamente';
                 }
@@ -1848,7 +2086,9 @@ class DiagnosticoController extends Controller
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
+                $visita_inspeccion->ciclo_vida_confirmacion_visita = $validatedData['ciclo_vida_confirmacion_visita'];
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
+                $visita_inspeccion->anexos_confirmacion_plan_visita = json_encode($anexos_adicionales);
                 $visita_inspeccion->save();
 
 
@@ -1944,16 +2184,21 @@ class DiagnosticoController extends Controller
     public function abrir_visita_inspeccion(Request $request) {
         try {
             $validatedData = $request->validate([
-                'grupo_inspeccion' => 'required',
                 'id' => 'required',
+                'grupo_inspeccion' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'apertura_visita' => 'required',
-                'carta_salvaguarda' => 'required',
+                'observaciones' => 'nullable|string',
+                'documento_apertura_visita' => 'required|string',
+                'nombre_anexo_abrir_visita.*' => 'nullable|string',
+                'anexo_abrir_visita.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'acta_apertura_visita' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx|required_if:documento_apertura_visita,Acta de apertura',
+                'grabacion_apertura_visita' => 'required_if:documento_apertura_visita,Grabación de apertura',
+                'carta_salvaguarda' => 'required|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1964,6 +2209,165 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $banderaAnexos = false;
+                $banderaActaAperturaVisita = false;
+                $banderaCartaPresentacion = false;
+
+                $accessToken = auth()->user()->google_token;
+                $folderId = $visita_inspeccion->carpeta_drive;
+                $anexos_adicionales = [];
+
+                if ($request->hasFile('acta_apertura_visita')) {
+                    $banderaActaAperturaVisita = true;
+                }
+
+                if($banderaActaAperturaVisita){
+    
+                    $uniqueCode = Str::random(8);
+                    $fecha = date('Ymd');
+                    $nameFormat = str_replace(' ', '_', $validatedData['acta_apertura_visita']->getClientOriginalName());
+    
+                    $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+    
+                    $filePath = $request->file('acta_apertura_visita')->getRealPath();
+                    $fileName = $newFileName;
+    
+                    $metadata = [
+                        'name' =>  $fileName,
+                        'parents' => [$folderId],
+                    ];
+    
+                    $response = Http::withToken($accessToken)
+                            ->attach(
+                                'data',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($filePath),
+                                $fileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+    
+                    if ($response->successful()) {
+                        $file = $response->json();
+                        $fileId = $file['id'];
+                        $fileUrl = 'https://drive.google.com/file/d/' . $fileId . '/view';
+                    } else {
+                        if (strpos($response, 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response->json()['error']['message']], 500);
+                    }
+
+                    $visita_inspeccion->enlace_apertura = $fileUrl;
+                }else{
+                    $visita_inspeccion->enlace_apertura = $validatedData['grabacion_apertura_visita'];
+                }
+
+                if ($request->hasFile('carta_salvaguarda')) {
+                    $banderaCartaPresentacion = true;
+                }
+
+                if($banderaCartaPresentacion){
+    
+                    $uniqueCode = Str::random(8);
+                    $fecha = date('Ymd');
+                    $nameFormat = str_replace(' ', '_', $validatedData['carta_salvaguarda']->getClientOriginalName());
+    
+                    $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+    
+                    $filePath = $request->file('carta_salvaguarda')->getRealPath();
+                    $fileName = $newFileName;
+    
+                    $metadata = [
+                        'name' =>  $fileName,
+                        'parents' => [$folderId],
+                    ];
+    
+                    $response = Http::withToken($accessToken)
+                            ->attach(
+                                'data',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($filePath),
+                                $fileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+    
+                    if ($response->successful()) {
+                        $file = $response->json();
+                        $fileId = $file['id'];
+                        $fileUrl = 'https://drive.google.com/file/d/' . $fileId . '/view';
+                    } else {
+                        if (strpos($response, 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response->json()['error']['message']], 500);
+                    }
+
+                    $visita_inspeccion->carta_salvaguarda = $fileUrl;
+                }
+
+                if ($request->file('anexo_abrir_visita')) {
+                    $uploadedFiles = $request->file('anexo_abrir_visita');
+                    $fileNames = $request->input('nombre_anexo_abrir_visita');
+                    $banderaAnexos = true;
+                }
+
+                if ($banderaAnexos) {
+                    foreach ($uploadedFiles as $index => $newFile) {
+                        $uniqueCode = Str::random(8);
+                        $fecha = date('Ymd');
+
+                        if ($fileNames[$index]) {
+                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
+                        } else {
+                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
+                        }
+
+                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+
+                        $metadata = [
+                            'name' =>  $newFileName,
+                            'parents' => [$folderId],
+                        ];
+
+                        $responseAnexos = Http::withToken($accessToken)
+                            ->attach(
+                                'metadata',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($newFile),
+                                $newFileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+
+                        if ($responseAnexos->successful()) {
+                            $file = $responseAnexos->json();
+                            $fileId = $file['id'];
+                            $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
+
+                            $anexos_adicionales[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
+                        } else {
+                            if (strpos($responseAnexos, 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
+                        }
+                    }
+                }
 
                 $grupo_visita_inspeccion = json_decode($validatedData['grupo_inspeccion'], true);
 
@@ -2037,12 +2441,11 @@ class DiagnosticoController extends Controller
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
-                $visita_inspeccion->enlace_apertura = $validatedData['apertura_visita'];
-                $visita_inspeccion->carta_salvaguarda = $validatedData['carta_salvaguarda'];
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
+                $visita_inspeccion->anexos_adicionales_abrir_visita = json_encode($anexos_adicionales);
                 $visita_inspeccion->save();
 
-                $this->historialInformes($validatedData['id'], 'APERTURA DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                $this->historialInformes($validatedData['id'], 'APERTURA DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -2151,7 +2554,6 @@ class DiagnosticoController extends Controller
     }
 
     public function cerrar_visita_inspeccion(Request $request){
-
         try {
         $proxima_etapa = '';
         $usuarios = [];
@@ -2164,7 +2566,9 @@ class DiagnosticoController extends Controller
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'cierre_visita' => 'required',
+                'observaciones' => 'nullable|string',
+                'enlace_documento_cierre_visita.*' => 'required|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_documento_cierre_visita.*' => 'required|nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -2175,6 +2579,68 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                //inicio anexos
+                $banderaAnexos = false;
+
+                if ($request->file('enlace_documento_cierre_visita')) {
+                    $uploadedFiles = $request->file('enlace_documento_cierre_visita');
+                    $fileNames = $request->input('nombre_documento_cierre_visita');
+                    $banderaAnexos = true;
+                }
+
+                $accessToken = auth()->user()->google_token;
+                $folderId = $visita_inspeccion->carpeta_drive;
+                $anexos_adicionales = [];
+
+                if ($banderaAnexos) {
+                    foreach ($uploadedFiles as $index => $newFile) {
+                        $uniqueCode = Str::random(8);
+                        $fecha = date('Ymd');
+
+                        if ($fileNames[$index]) {
+                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
+                        } else {
+                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
+                        }
+
+                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
+
+                        $metadata = [
+                            'name' =>  $newFileName,
+                            'parents' => [$folderId],
+                        ];
+
+                        $responseAnexos = Http::withToken($accessToken)
+                            ->attach(
+                                'metadata',
+                                json_encode($metadata),
+                                'metadata.json'
+                            )
+                            ->attach(
+                                'file',
+                                file_get_contents($newFile),
+                                $newFileName
+                            )
+                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+
+                        if ($responseAnexos->successful()) {
+                            $file = $responseAnexos->json();
+                            $fileId = $file['id'];
+                            $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
+
+                            $anexos_adicionales[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
+                        } else {
+                            if (strpos($responseAnexos, 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada finalizada. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
+                        }
+                    }
+                }
+
+                //Fin anexos
 
                 $proxima_etapa = 'EN REGISTRO DE HALLAZGOS DE LA VISITA DE INSPECCIÓN';
 
@@ -2222,19 +2688,82 @@ class DiagnosticoController extends Controller
                 
                 $usuariosSinDuplicados = collect($usuarios)->unique('id');
                 
-                $this->historialInformes($validatedData['id'], 'FINALIZACIÓN DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                $this->historialInformes($validatedData['id'], 'FINALIZACIÓN DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 $successMessage = 'Se finalizó la visita de inspección, se notifico a la delegatura, intendencia y coordinación';
+
+                $proxima_etapa = 'EN DESARROLLO DE VISITA DE INSPECCIÓN';
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->fecha_fin_visita = date('Y-m-d');
                 $visita_inspeccion->estado_etapa = $estado_etapa;
-                $visita_inspeccion->documentos_cierre_visita = $validatedData['cierre_visita'];
+                $visita_inspeccion->documentos_cierre_visita = json_encode($anexos_adicionales) ;
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 $visita_inspeccion->save();
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
+
+                return response()->json(['message' => $successMessage]);
+            }
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            return response()->json(['error' => $errorMessage], 500);
+        }
+    }
+
+    public function solicitar_dias_adicionales(Request $request){
+        try {
+
+            $validatedData = $request->validate([
+                'id' => 'required',
+                'etapa' => 'required',
+                'estado' => 'required',
+                'estado_etapa' => 'required',
+                'numero_informe' => 'required',
+                'razon_social' => 'required',
+                'nit' => 'required',
+                'observaciones' => 'required|string',
+                'dias' => 'required|numeric',
+            ]);
+
+            $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
+                                                    ->with('etapaProceso')
+                                                    ->first();
+
+            if($visita_inspeccion->etapa !== $validatedData['etapa']){
+                $successMessage = 'Estado de la etapa no permitido';
+                return response()->json(['error' => $successMessage], 404);
+            }else {
+
+                $usuarioCreacionId = Auth::id();
+                $userName = Auth::user()->name;
+
+                $asunto_email = 'Solicitud de días adicionales para la visita '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Solicitud de días adicionales para la visita '. $validatedData['numero_informe'],
+                                            'mensaje' => $userName.' lider de la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                $validatedData['nit']. ', solicita adicionar '. $validatedData['dias']. ' días adicionales para dar cierre a la visita de inspección con las siguientes observaciones: '. $validatedData['observaciones'] ];
+
+                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                
+                $usuarios_coordinadores = User::where('profile', 'Coordinador')
+                                                ->get();
+
+                foreach ($usuarios_coordinadores as $usuario_coordinador) {
+                    $this->enviar_correos($usuario_coordinador->id, $asunto_email, $datos_adicionales);
+                }
+
+                $dias_adicionales = new SolicitudDiaAdicional();
+                $dias_adicionales->dias = $validatedData['dias'];
+                $dias_adicionales->observacion = $validatedData['observaciones'];
+                $dias_adicionales->estado = 'APROBACIÓN COORDINACIÓN';
+                $dias_adicionales->id_informe = $validatedData['id'];
+                $dias_adicionales->usuario_creacion = $usuarioCreacionId;
+                $dias_adicionales->save();
+                
+                $this->historialInformes($validatedData['id'], 'SOLICITUD DE DÍAS ADICIONALES A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), 'Solicitud de '.$validatedData['dias']. ' días adicionales con las siguientes observaciones: '.$validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+
+                $successMessage = 'Se envía la solicitud de '.$validatedData['dias'].' día(s) adicional(es) a la coordinación del grupo de inspección';
 
                 return response()->json(['message' => $successMessage]);
             }
@@ -4617,7 +5146,7 @@ class DiagnosticoController extends Controller
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'observacion' => 'sometimes|string',
+                'observacion' => 'nullable|string',
                 'tipo_visita_modificada' => 'required',
                 'enlace_plan_visita' => 'sometimes|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'anexo_plan_visita_modificado.*' => 'sometimes|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',

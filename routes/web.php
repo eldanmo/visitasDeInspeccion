@@ -103,6 +103,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cambiar_entidad', [DiagnosticoController::class, 'cambiar_entidad'])->name('cambiar_entidad');
     Route::post('/eliminar_archivo', [DiagnosticoController::class, 'eliminar_archivo'])->name('eliminar_archivo');
     Route::post('/guardar_plan_visita_modificado', [DiagnosticoController::class, 'guardar_plan_visita_modificado'])->name('guardar_plan_visita_modificado');
+    Route::post('/solicitar_dias_adicionales', [DiagnosticoController::class, 'solicitar_dias_adicionales'])->name('solicitar_dias_adicionales');
 
     Route::get('/estadisticas', [EstadisticaController::class, 'estadisticas'])->name('estadisticas');
     Route::post('/estadisticas_datos', [EstadisticaController::class, 'estadisticas_datos'])->name('estadisticas_datos');

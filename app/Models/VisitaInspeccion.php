@@ -53,6 +53,14 @@ class VisitaInspeccion extends Model
         'enlace_subsanacion_diagnostico',
         'anexos_subsanacion_diagnostico',
         'anexos_adicionales_plan_visita',
+        'anexos_adicionales_informacion_adicional_recibida',
+        'ciclo_informacion_adicional',
+        'radicado_entrada_informacion_adicional',
+        'enlace_plan_visita_ajustado',
+        'anexos_plan_visita_ajustado',
+        'anexos_confirmacion_plan_visita',
+        'anexos_adicionales_abrir_visita',
+        'ciclo_vida_confirmacion_visita',
     ];
 
     public function entidad()
@@ -89,5 +97,10 @@ class VisitaInspeccion extends Model
     {
         return $this->hasMAny(GrupoVisitaInspeccion::class, 'id_informe', 'id')
                     ->where('estado', 'ACTIVO');
+    }
+
+    public function solicitudDiasAdicionales()
+    {
+        return $this->hasMAny(SolicitudDiaAdicional::class, 'id_informe', 'id');
     }
 }
