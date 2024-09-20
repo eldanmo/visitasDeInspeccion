@@ -103,4 +103,11 @@ class VisitaInspeccion extends Model
     {
         return $this->hasMAny(SolicitudDiaAdicional::class, 'id_informe', 'id');
     }
+
+    public function anexos()
+    {
+        return $this->hasMAny(AnexoRegistro::class, 'id_tipo_anexo', 'id')
+                            ->where('proceso', 'VISITA DE INSPECCIÓN')
+                            ->where('estado', 'ACTIVO');
+    }
 }

@@ -37,4 +37,6 @@
             </main>
         </div>
     </body>
+    <footer style="height: 100px; background-color: #069169; " >
+    </footer>
 </html>

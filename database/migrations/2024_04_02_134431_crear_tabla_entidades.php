@@ -39,7 +39,7 @@ return new class extends Migration
             $table->string('correo_representate_legal');
             $table->string('telefono_representate_legal');
             $table->string('tipo_revisor_fiscal');
-            $table->string('razon_social_revision_fiscal');
+            $table->string('razon_social_revision_fiscal')->nullable();
             $table->string('nombre_revisor_fiscal');
             $table->string('direccion_revisor_fiscal');
             $table->string('telefono_revisor_fiscal');

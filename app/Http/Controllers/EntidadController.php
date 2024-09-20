@@ -8,6 +8,7 @@ use App\Models\Entidad;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Http;
 
 class EntidadController extends Controller
 {
@@ -25,7 +26,7 @@ class EntidadController extends Controller
     {
         try {
 
-            $validatedData = $request->validate([
+            /*$validatedData = $request->validate([
                 'codigo_entidad' => [
                     'required',
                     'numeric',
@@ -64,7 +65,7 @@ class EntidadController extends Controller
                 'correo_representate_legal' => 'required|email',
                 'telefono_representate_legal' => 'nullable|string',
                 'tipo_revisor_fiscal' => 'required|string',
-                'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA NATURAL',
+                'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA JURÍDICA',
                 'nombre_revisor_fiscal' => 'required|string',
                 'direccion_revisor_fiscal' => 'required|string',
                 'telefono_revisor_fiscal' => 'required|string',
@@ -107,9 +108,11 @@ class EntidadController extends Controller
             $entidad->correo_revisor_fiscal = $validatedData['correo_revisor_fiscal'];
             $entidad->usuario_creacion = $usuarioCreacionId;
             $entidad->estado = 'ACTIVA';
-            $entidad->save();
+            $entidad->save();*/
 
-            $successMessage = 'Entidad creada correctamente';
+            $successMessage = $this->llenar_sheets();
+
+            //$successMessage = 'Entidad creada correctamente';
 
             return response()->json(['message' => $successMessage]);
         } catch (\Exception $e) {
@@ -209,7 +212,7 @@ class EntidadController extends Controller
                 'correo_representate_legal' => 'required|email',
                 'telefono_representate_legal' => 'nullable|string',
                 'tipo_revisor_fiscal' => 'required|string',
-                'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA NATURAL',
+                'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA JURÍDICA',
                 'nombre_revisor_fiscal' => 'required|string',
                 'direccion_revisor_fiscal' => 'required|string',
                 'telefono_revisor_fiscal' => 'required|string',
@@ -413,6 +416,47 @@ class EntidadController extends Controller
             return response()->json(['message' => 'Entidades importadas correctamente']);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function llenar_sheets() {
+        $accessToken = auth()->user()->google_token;
+        $spreadsheetId = '1fWasA1SxbPnhjj5qm5A5dw5tFzkSIn7-5TXvUPbnC-M';
+
+        $range = 'Hoja1!A1';
+
+        $values = [
+            ['Dato 1', 'Dato 2', 'Dato 3'],
+            ['Dato 4', 'Dato 5', 'Dato 6']
+        ];
+    
+        $body = [
+            'values' => $values
+        ];
+    
+        $response = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=RAW", $body);
+
+        if ($response->successful()) {
+            return [
+                        'status' => 'success',
+                        'message' => 'Datos enviados a la hoja de cálculo exitosamente.'
+            ];
+        } else {
+            if (strpos($response->body(), 'Invalid Credentials') !== false) {
+                auth()->logout();
+                        return [
+                            'status' => 'error',
+                            'message' => 'Sesión cerrada. Por favor, vuelva a iniciar sesión.'
+                        ];
+            }
+            return [
+                'status' => 'error',
+                'message' => $response->json()['error']['message']
+            ];
         }
     }
 }

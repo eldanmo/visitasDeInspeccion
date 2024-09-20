@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('estado')->unique();
             $table->unsignedInteger('dias');
             $table->string('usuario_creacion');
+            $table->string('proceso');
             $table->timestamps();
         });
     }

@@ -15,5 +15,6 @@ class Parametro extends Model
         'estado',
         'dias',
         'usuario_creacion',
+        'proceso',
     ];
 }

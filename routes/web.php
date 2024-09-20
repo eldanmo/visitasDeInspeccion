@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AsuntoEspecialController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DiagnosticoController;
 use App\Http\Controllers\EntidadController;
@@ -8,11 +9,11 @@ use App\Http\Controllers\ParametrosController;
 use App\Http\Controllers\EstadisticaController;
 use App\Http\Controllers\DiaNoLaboralController;
 use App\Http\Controllers\GoogleController;
-use Laravel\Socialite\Facades\Socialite;
-use App\Models\User;
-//use DragonCode\Contracts\Cashier\Auth\Auth;
+use App\Http\Controllers\PdfController;
+use App\Http\Controllers\MaestroEntidadesController;
+
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
+
 
 Route::get('/', function () {
     return view('auth/login');
@@ -26,6 +27,7 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::get('/actualizar_dias_visitas', [DiagnosticoController::class, 'actualizar_dias_visitas'])->name('actualizar_dias_visitas');
+Route::get('/actualizar_historico_visitas', [DiagnosticoController::class, 'actualizar_historico_visitas'])->name('actualizar_historico_visitas');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -61,6 +63,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/actualizar_usuario/{id}', [UsuarioController::class, 'actualizar'])->name('actualizar_usuario');
 
     Route::post('/guardar_observacion', [DiagnosticoController::class, 'guardar_observacion'])->name('guardar_observacion');
+
+    Route::post('/consultar_dias_no_laborales', [DiagnosticoController::class, 'consultar_dias_no_laborales'])->name('consultar_dias_no_laborales');
 
     Route::post('/finalizar_diagnostico', [DiagnosticoController::class, 'finalizar_diagnostico'])->name('finalizar_diagnostico');
     Route::post('/asignar_grupo_inspeccion', [DiagnosticoController::class, 'asignar_grupo_inspeccion'])->name('asignar_grupo_inspeccion');
@@ -102,9 +106,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/reanudar_visita', [DiagnosticoController::class, 'reanudar_visita'])->name('reanudar_visita');
     Route::post('/cambiar_entidad', [DiagnosticoController::class, 'cambiar_entidad'])->name('cambiar_entidad');
     Route::post('/eliminar_archivo', [DiagnosticoController::class, 'eliminar_archivo'])->name('eliminar_archivo');
+    Route::post('/eliminar_archivo_update', [DiagnosticoController::class, 'eliminar_archivo_update'])->name('eliminar_archivo_update');
     Route::post('/guardar_plan_visita_modificado', [DiagnosticoController::class, 'guardar_plan_visita_modificado'])->name('guardar_plan_visita_modificado');
     Route::post('/solicitar_dias_adicionales', [DiagnosticoController::class, 'solicitar_dias_adicionales'])->name('solicitar_dias_adicionales');
-
+    Route::post('/confirmar_dias_adicionales_coordinacion', [DiagnosticoController::class, 'confirmar_dias_adicionales_coordinacion'])->name('confirmar_dias_adicionales_coordinacion');
+    Route::post('/confirmar_dias_adicionales_delegatura', [DiagnosticoController::class, 'confirmar_dias_adicionales_delegatura'])->name('confirmar_dias_adicionales_delegatura');
+    Route::post('/pdfDownload', [DiagnosticoController::class, 'pdfDownload'])->name('pdfDownload');
+    Route::post('/citacion_comite_interno_evaluador', [DiagnosticoController::class, 'citacion_comite_interno_evaluador'])->name('citacion_comite_interno_evaluador');
+    Route::post('/guardar_documento_adicional_visita_inspeccion', [DiagnosticoController::class, 'guardar_documento_adicional_visita_inspeccion'])->name('guardar_documento_adicional_visita_inspeccion');
+    
     Route::get('/estadisticas', [EstadisticaController::class, 'estadisticas'])->name('estadisticas');
     Route::post('/estadisticas_datos', [EstadisticaController::class, 'estadisticas_datos'])->name('estadisticas_datos');
 
@@ -115,6 +125,22 @@ Route::middleware('auth')->group(function () {
 
     Route::post('importar_entidades', [EntidadController::class, 'importar_entidades'])->name('importar_entidades');
 
+    Route::get('/pdf', [PdfController::class, 'show'])->name('pdfshow');
+    Route::get('/pdf-viewer', function () {
+        return view('pdf-viewer');
+    });
+
+    Route::get('/consultar_entidad_asunto_especial', [AsuntoEspecialController::class, 'consultar_entidad_asunto_especial'])->name('consultar_entidad_asunto_especial');
+    Route::get('/asunto_especial/{id}', [AsuntoEspecialController::class, 'asunto_especial'])->name('asunto_especial');
+    Route::post('/guardar_observacion_asunto_especial', [AsuntoEspecialController::class, 'guardar_observacion_asunto_especial'])->name('guardar_observacion_asunto_especial');
+    Route::post('/guardar_documento_adicional_asunto_especial', [AsuntoEspecialController::class, 'guardar_documento_adicional_asunto_especial'])->name('guardar_documento_adicional_asunto_especial');
+    Route::post('/guardar_memorando_traslado_grupo_asuntos_especiales', [AsuntoEspecialController::class, 'guardar_memorando_traslado_grupo_asuntos_especiales'])->name('guardar_memorando_traslado_grupo_asuntos_especiales');
+
+    Route::get('/consultar_maestro_entidades', [MaestroEntidadesController::class, 'consultar_maestro_entidades'])->name('consultar_maestro_entidades');
+    Route::post('/crear_entidad_maestra', [MaestroEntidadesController::class, 'crear_entidad_maestra'])->name('crear_entidad_maestra');
+    Route::get('/consultar_entidad_maestra/{id}', [MaestroEntidadesController::class, 'consultar_entidad_maestra'])->name('consultar_entidad_maestra');
+
+    
 });
 
 require __DIR__.'/auth.php';

@@ -13,7 +13,9 @@
                         </div>
                     </div>
                     <div class="col col-sm-12 text-end mt-3 mb-3">
-                        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalCrearDiaNoLaboral">Crear día no laborable</button>
+                        @if(Auth::user()->profile === 'Administrador')
+                            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalCrearDiaNoLaboral">Crear día no laborable</button>
+                        @endif
                         <button type="submit" class="btn btn-primary">Buscar</button>
                     </div>
         </form>

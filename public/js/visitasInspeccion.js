@@ -185,19 +185,20 @@ function guardarEntidad() {
             if ($(this).attr('id') !== 'sigla' &&
                 $(this).attr('id') !== 'categoria' &&
                 $(this).attr('id') !== 'id' &&
-                $(this).attr('id') !== 'incluye_sarlaft') {
-
-                    var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-            
-                    labels.push(label);
-                    bandera = true;
-            }else{
+                $(this).attr('id') !== 'incluye_sarlaft' &&
+                $(this).attr('id') !== 'razon_social_revision_fiscal') {
+    
+                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+                labels.push(label);
+                bandera = true;
+            } else {
                 formData.append($(this).attr('id'), $(this).val());
             }
         } else {
             formData.append($(this).attr('id'), $(this).val());
         }
     });
+    
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -253,7 +254,7 @@ function guardarEntidad() {
     .then(data => {
         const message = data.message;
         Swal.fire('Éxito!', message, 'success').then(()=>{
-            location.reload();
+            //location.reload();
         })
     })
     .catch(error => {
@@ -604,70 +605,151 @@ function seleccionarEntidadCambiar(entidad) {
     });
 }
 
-function parametrosCreacionDiagnostico() {
+async function parametrosCreacionDiagnostico() {
     let fechaActual = new Date().toISOString().split('T')[0];
     $('#fecha_inicio_diagnostico').val(fechaActual);
 
     const dias_diagnostico = $('#dias_diagnostico').val();
 
-    let fecha_fin = sumarDiasHabiles(fechaActual, parseInt(dias_diagnostico));
+    let fecha_fin = await sumarDiasHabiles(fechaActual, parseInt(dias_diagnostico));
+
     $('#fecha_fin_diagnostico').val(fecha_fin);
 }
 
 const diasFestivosColombia = [
-    '2024-01-01', 
-    '2024-01-06', 
-    '2024-03-25', 
-    '2024-03-28', 
-    '2024-03-29', 
-    '2024-05-01', 
-    '2024-05-13', 
-    '2024-06-03', 
-    '2024-06-10', 
-    '2024-07-01', 
-    '2024-07-20', 
-    '2024-08-07', 
-    '2024-08-19', 
-    '2024-10-14', 
-    '2024-11-04', 
-    '2024-11-11', 
-    '2024-12-08', 
-    '2024-12-25', 
-    
+    '2024-07-10', 
+    '2024-07-19', 
+    '2024-09-20', 
 ];
-  
-function esDiaHabilColombia(fecha) {
+
+async function esDiaHabilColombia(fecha) {
     const dia = fecha.getDay();
+    return dia !== 0 && dia !== 6 && !(await esDiaFestivoColombia(fecha));
+}
+  
+/*function esDiaHabilColombia(fecha) {
+    const dia = fecha.getDay();
+    
     return dia !== 0 && dia !== 6 && !esDiaFestivoColombia(fecha);
-}
-  
-function esDiaFestivoColombia(fecha) {
+}*/
+
+async function esDiaFestivoColombia(fecha) {
     const fechaString = fecha.toISOString().split('T')[0];
-    return diasFestivosColombia.includes(fechaString);
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const heads = { 'X-CSRF-TOKEN': token };
+
+    try {
+        const response = await fetch(`/consultar_dias_no_laborales`, {
+            method: 'POST',
+            headers: heads,
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Error en la solicitud');
+        }
+
+        const data = await response.json();
+        const message = data.message; // Arreglo con los días festivos
+        return message.includes(fechaString);
+    } catch (error) {
+        Swal.fire('Error', error.message, 'error');
+        return false; // En caso de error, consideramos que no es festivo
+    }
 }
   
-function sumarDiasHabiles(fechaString, dias) {
-    const fecha = new Date(fechaString);
+/*function esDiaFestivoColombia(fecha) {
+    const fechaString = fecha.toISOString().split('T')[0];
+    var diasFestivosColombiaBase = [];
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    fetch(`/consultar_dias_no_laborales`,{
+        method: 'POST',
+        headers: heads,
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        diasFestivosColombiaBase.push(message);
+
+        console.log('fechaString',fechaString);
+        console.log('include',message.includes(fechaString));
+        console.log('diasFestivosColombiaBase', diasFestivosColombiaBase);
+        console.log('message', message);
+
+        return message.includes(fechaString);
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.revisionDiagnostico').prop('disabled', false);
+    });
+    
+    
+}*/
+  
+/*function sumarDiasHabiles(fechaString, dias) {
+    const fecha = new Date(fechaString);    
+    
     let contador = 0;
     while (contador < (dias+1)) {
       fecha.setDate(fecha.getDate() + 1);
+        console.log('es dia habil colombia', esDiaHabilColombia(fecha));
+        
       if (esDiaHabilColombia(fecha)) {
         contador++;
+        console.log('fecha',fecha);
+        
       }
     }
     const year = fecha.getFullYear();
     const month = ('0' + (fecha.getMonth() + 1)).slice(-2);
     const day = ('0' + fecha.getDate()).slice(-2);
     return `${year}-${month}-${day}`;
+}*/
+
+async function sumarDiasHabiles(fechaString, dias) {
+    const fecha = new Date(fechaString);    
+    let contador = 0;
+
+    while (contador < (dias + 1)) {
+        fecha.setDate(fecha.getDate() + 1);
+
+        if (await esDiaHabilColombia(fecha)) {
+            contador++;
+        }
+    }
+
+    const year = fecha.getFullYear();
+    const month = ('0' + (fecha.getMonth() + 1)).slice(-2);
+    const day = ('0' + fecha.getDate()).slice(-2);
+    return `${year}-${month}-${day}`;
 }
 
-function diasHabilesDiagnostico() {
+/*function diasHabilesDiagnostico() {
     let fecha_inicio_diagnostico = $('#fecha_inicio_diagnostico').val();
 
     const dias_diagnostico = $('#dias_diagnostico').val();
 
     let fecha_fin = sumarDiasHabiles(fecha_inicio_diagnostico, parseInt(dias_diagnostico));
     $('#fecha_fin_diagnostico').val(fecha_fin);
+}*/
+
+async function diasHabilesDiagnostico() {
+    let fecha_inicio_diagnostico = $('#fecha_inicio_diagnostico').val();
+    const dias_diagnostico = $('#dias_diagnostico').val();
+
+    let fecha_fin = await sumarDiasHabiles(fecha_inicio_diagnostico, parseInt(dias_diagnostico));
+    $('#fecha_fin_diagnostico').val(fecha_fin);  
 }
 
 function guardarDiagnostico() {
@@ -686,6 +768,7 @@ function guardarDiagnostico() {
             if ($(this).attr('id') !== 'sigla' &&
                 $(this).attr('id') !== 'categoria' &&
                 $(this).attr('id') !== 'id' &&
+                $(this).attr('id') !== 'razon_social_revision_fiscal' &&
                 $(this).attr('id') !== 'incluye_sarlaft') {
 
                     var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
@@ -1121,7 +1204,6 @@ function resultadoRevisionDiagnostico() {
     }else{
         $('.div_enlace_documento_diagnostico').hide();
     }
-    
 }
 
 function guardarRevisionDiagnostico() {
@@ -1129,6 +1211,8 @@ function guardarRevisionDiagnostico() {
 
     var labels = [];
     let resultado_revision = $('#resultado_revision').val();
+    let ciclo_devolucion_documento_diagnostico = $('#ciclo_devolucion_documento_diagnostico').val();
+    let observaciones_documento_diagnostico = $('#observaciones_documento_diagnostico').val();
     let etapa = $('#etapa').val();
     let estado = $('#estado').val();
     let estado_etapa = $('#estado_etapa').val();
@@ -1138,44 +1222,21 @@ function guardarRevisionDiagnostico() {
 
     var url = `/guardar_revision_diagnostico`;
     let id = $('#id').val();
-    
-    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    var formData = new FormData();
-
-    formData.append('id', id);
-    formData.append('etapa', etapa);
-    formData.append('estado', estado);
-    formData.append('estado_etapa', estado_etapa);
-    formData.append('numero_informe', numero_informe);
-    formData.append('razon_social', razon_social);
-    formData.append('nit', nit);
-
-    var heads = {'X-CSRF-TOKEN': token}
 
     if (resultado_revision === '') {
-        var html = `<label>Debe seleccionar si el documento diagnóstico cumple con los criterios suficientes para elaborar el plan de la visita</label>`;
-
-        Swal.fire({
-          icon: "warning",
-          title: "Atención",
-          html: html,
-        });
-
-        return;
+        labels.push('¿El documento diagnóstico cumple con los criterios suficientes para elaborar el plan de la visita?');
+        bandera = true;
     }
 
-    $('.required_revision_diagnostico').each(function() {
-        if ($(this).val() === '') {
-                if (resultado_revision === 'No') {
-                    var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-            
-                    labels.push(label);
-                    bandera = true;
-                }
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    if (resultado_revision === 'No' && ciclo_devolucion_documento_diagnostico === '') {
+        labels.push('Fecha y hora en que se socializará el diagnóstico');
+        bandera = true;
+    }
+
+    if (resultado_revision === 'No' && observaciones_documento_diagnostico === '') {
+        labels.push('Observaciones');
+        bandera = true;
+    }
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -1192,6 +1253,22 @@ function guardarRevisionDiagnostico() {
 
         return;
     }
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('resultado_revision', resultado_revision);
+    formData.append('ciclo_devolucion_documento_diagnostico', ciclo_devolucion_documento_diagnostico);
+    formData.append('observaciones_documento_diagnostico', observaciones_documento_diagnostico);
+
+    var heads = {'X-CSRF-TOKEN': token}
 
     $('.revisionDiagnostico').prop('disabled', true);
 
@@ -1360,7 +1437,7 @@ function finalizarSubsanarDiagnostico() {
     }).finally(() => {
         $('.diagnosticoSubsanado').prop('disabled', false);
     });
-  }
+}
 
 function planVisita() {
     var bandera = false;
@@ -2440,14 +2517,14 @@ function abrirVisitaInspeccion() {
         bandera = true;
     }
 
-    var fileInputCarta = document.getElementById('carta_salvaguarda');
+    /*var fileInputCarta = document.getElementById('carta_salvaguarda');
     var fileCarta = fileInputCarta.files[0];
     if (fileCarta) {
         formData.append('carta_salvaguarda', fileCarta);
     } else {
         labels.push('Carta salvaguarda');
         bandera = true;
-    }
+    }*/
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -2702,6 +2779,7 @@ function abrirVisitaInspeccion() {
     let observaciones = $('#observaciones_solicitud_dias_adicionales').val();
     let dias = $('#dias').val();
     var labels = [];
+    let anexos_adicionales = [];
 
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -2714,6 +2792,16 @@ function abrirVisitaInspeccion() {
     formData.append('nit', nit);
     formData.append('observaciones', observaciones);
     formData.append('dias', dias);
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_dias_adicionales_lider');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -2746,7 +2834,23 @@ function abrirVisitaInspeccion() {
         return;
     }
 
-    $('.cerrarVisitaInspeccion').prop('disabled', true);
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.enviarObservacion').prop('disabled', true);
 
     fetch(url,{
         method: 'POST',
@@ -2769,25 +2873,65 @@ function abrirVisitaInspeccion() {
     .catch(error => {
         Swal.fire('Error', error.message, 'error');
     }).finally(() => {
-        $('.cerrarVisitaInspeccion').prop('disabled', false);
+        $('.enviarObservacion').prop('disabled', false);
     });
   }
 
+  function cargarDocumentosAdicionales(clase) {
+    let anexos_adicionales = [];
+    let bandera = false;
+    let labels = '';
+
+    $(clase).each(function () {
+
+        let row = {};
+        let banderaText = false;
+        let banderaFile = false;
+    
+        $(this).find('input[type="text"]').each(function() {
+            let key = $(this).attr('name');
+            let valueText = $(this).val();
+            if (valueText !=  '') {
+                row[key] = valueText; 
+                banderaText = true;
+            }
+        });
+
+        $(this).find('input[type="file"]').each(function() {
+            let key = $(this).attr('name');
+            let valuefile = this.files[0];
+            if (valuefile !=  undefined) {
+                row[key] = valuefile; 
+                banderaFile=true;
+            }
+        });
+
+        if (banderaText && banderaFile) {
+            anexos_adicionales.push(row);
+        }
+
+        if ( (!banderaText && banderaFile) || (banderaText && !banderaFile) ) {
+            labels = 'Todos los anexos deben tener nombre y adjunto';
+            bandera = true;
+        }
+    })
+
+    return {bandera, anexos_adicionales, labels};
+  }
+
   function abrirModalAprobarDiasAdicionalesCordinacion(id, observacion, dias) {
-    console.log(id, observacion, dias, 'h');
     $('#modalConfirmarDiasAdicionales').modal('show');
     $('#id_solicitud').val(id);
 
     document.getElementById('dias_solicitados').innerHTML = dias;
     document.getElementById('motivo_solicitud').innerHTML = observacion;
-    document.getElementById('dias_autorizar').innerHTML = dias;
+    document.getElementById('dias_autorizar').value = dias;
     
   }
-
-  function registrarHallazgos() {
+  
+  function confirmarDiasAdicionales() {
     var bandera = false;
 
-    var labels = [];
     let id = $('#id').val();
     let etapa = $('#etapa').val();
     let estado = $('#estado').val();
@@ -2795,10 +2939,33 @@ function abrirVisitaInspeccion() {
     let numero_informe = $('#numero_informe').val();
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
-    let url = `/registrar_hallazgos`;
-    let registro_hallazgos = [];
-    
+    let url = `/confirmar_dias_adicionales_coordinacion`;
+    let observaciones = $('#observaciones_solicitud_dias_adicionales_coordinacion').val();
+    let dias = $('#dias_autorizar').val();
+    let confirmar_rechazar_solicitud = $('#confirmar_rechazar_solicitud').val();
+    let id_solicitud = $('#id_solicitud').val();
+    var labels = [];
+
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    if (confirmar_rechazar_solicitud === '') {
+        labels.push('Confirmar / rechazar solicitud');
+        bandera = true;
+    }else if(confirmar_rechazar_solicitud === 'Confirmar'){
+        if (dias === '') {
+            labels.push('Cantidad de días adicionales');
+            bandera = true;
+        }else if(dias < 1){
+            labels.push('Cantidad de días adicionales debe ser mayor a 0');
+            bandera = true;
+        }
+    }else{
+        if (observaciones === '') {
+            labels.push('Observaciones');
+            bandera = true;
+        }
+    }
+
     var formData = new FormData();
     formData.append('id', id);
     formData.append('etapa', etapa);
@@ -2807,26 +2974,19 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('dias', dias);
+    formData.append('confirmar_rechazar_solicitud', confirmar_rechazar_solicitud);
+    formData.append('id_solicitud', id_solicitud);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.tr_documentos_hallazgos').each(function () {
-
-        var row = {};
-            $(this).find('input[type="text"]').each(function() {
-                var key = $(this).attr('name');
-                var value = $(this).val();
-                row[key] = value;
-
-                if (value === '') {
-                    bandera = true;
-                }
-            });
-            registro_hallazgos.push(row);
-    })
-
-    if (bandera || registro_hallazgos.length < 1 ) {
-        var html = `<label>Todos los datos de las tablas deben ser diligenciados</label>`;
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
 
         Swal.fire({
           icon: "warning",
@@ -2837,7 +2997,230 @@ function abrirVisitaInspeccion() {
         return;
     }
 
-    formData.append('registro_hallazgos', JSON.stringify(registro_hallazgos));
+    $('.enviarObservacion').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarObservacion').prop('disabled', false);
+    });
+  }
+
+  function confirmarRechazarSolicitudDiasAdicionales() {
+    var aceptar_rechazar = document.getElementById('confirmar_rechazar_solicitud').value;
+    if (aceptar_rechazar === 'Confirmar') {
+        $('#div_dias_adicionales_coordinacion').show();
+        document.getElementById('label_observaciones_dias_coordinacion').innerHTML = '<b>Observaciones</b>';
+    }else{
+        $('#div_dias_adicionales_coordinacion').hide();
+        document.getElementById('label_observaciones_dias_coordinacion').innerHTML = '<b>Observaciones (*)</b>';
+    }
+  }
+
+  function abrirModalAprobarDiasAdicionalesDelegatura(id, observacion, dias, historico) {
+    $('#modalConfirmarDiasAdicionalesDelegatura').modal('show');
+    $('#id_solicitud').val(id);
+
+    var historial = JSON.parse(historico);
+
+    historial.forEach(function(historia){
+        document.getElementById('dias_aprobados_coordinacion').textContent = historia.dias;
+        document.getElementById('observaciones_aprobacion_coordinacion').textContent = historia.observacion;
+        document.getElementById('dias_autorizar_delegatura').value = historia.dias;
+    });
+
+    document.getElementById('dias_solicitados_lider').textContent = dias;
+    document.getElementById('motivo_solicitud_lider').textContent = observacion;
+  }
+
+  function confirmarRechazarSolicitudDiasAdicionalesDelegatura() {
+    var aceptar_rechazar = document.getElementById('confirmar_rechazar_solicitud_delegatura').value;
+    if (aceptar_rechazar === 'Confirmar') {
+        $('#div_dias_adicionales_delegatura').show();
+        document.getElementById('label_observaciones_dias_delegatura').textContent = 'Observaciones';
+    }else{
+        $('#div_dias_adicionales_delegatura').hide();
+        document.getElementById('label_observaciones_dias_delegatura').textContent = 'Observaciones (*)';
+    }
+  }
+
+  function confirmarDiasAdicionalesDelegatura() {
+    var bandera = false;
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/confirmar_dias_adicionales_delegatura`;
+    let observaciones = $('#observaciones_solicitud_dias_adicionales_delegatura').val();
+    let dias = $('#dias_autorizar_delegatura').val();
+    let confirmar_rechazar_solicitud = $('#confirmar_rechazar_solicitud_delegatura').val();
+    let id_solicitud = $('#id_solicitud').val();
+    var labels = [];
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    if (confirmar_rechazar_solicitud === '') {
+        labels.push('Confirmar / rechazar solicitud');
+        bandera = true;
+    }else if(confirmar_rechazar_solicitud === 'Confirmar'){
+        if (dias === '') {
+            labels.push('Cantidad de días adicionales');
+            bandera = true;
+        }else if(dias < 1){
+            labels.push('Cantidad de días adicionales debe ser mayor a 0');
+            bandera = true;
+        }
+    }else{
+        if (observaciones === '') {
+            labels.push('Observaciones');
+            bandera = true;
+        }
+    }
+
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('dias', dias);
+    formData.append('confirmar_rechazar_solicitud', confirmar_rechazar_solicitud);
+    formData.append('id_solicitud', id_solicitud);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    $('.enviarObservacion').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarObservacion').prop('disabled', false);
+    });
+  }
+
+  function registrarHallazgos() {
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/registrar_hallazgos`;
+    let observaciones = $('#observaciones_hallazgos').val();
+    let anexos_adicionales = [];
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_hallazgos');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        bandera_anexos = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }else{
+        bandera_anexos = true;
+    }
+
+    if (bandera_anexos) {
+        var html = `<label>Todos los datos de las tablas deben ser diligenciados</label>`;
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
 
     $('.registrarHallazgos').prop('disabled', true);
 
@@ -2878,6 +3261,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/consolidar_hallazgos`;
+    let anexos_adicionales = [];
+    let observaciones = $('#observaciones_consolidar_hallazgos').val();
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -2888,10 +3273,68 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_registro_hallazgos_consolidados').each(function() {
+    var fileInput = document.getElementById('registro_hallazgos_consolidados');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('registro_hallazgos_consolidados', file);
+    } else {
+        labels.push('Hallazgos consolidados');
+        bandera = true;
+    }
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_consolidar_hallazgos');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+    
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+
+
+
+
+
+
+    /*$('.required_registro_hallazgos_consolidados').each(function() {
         if ($(this).val() === '') {
             var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
 
@@ -2916,7 +3359,7 @@ function abrirVisitaInspeccion() {
         });
 
         return;
-    }
+    }*/
 
     $('.registrarHallazgosConsolidados').prop('disabled', true);
 
@@ -2957,7 +3400,9 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/proyecto_informe_final`;
-    
+    let observaciones = $('#observaciones_proyecto_informe_final').val();
+    let anexos_adicionales = [];
+
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
     formData.append('id', id);
@@ -2967,19 +3412,28 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_proyecto_informe_final').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    var fileInput = document.getElementById('proyecto_informe_final');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('proyecto_informe_final', file);
+    } else {
+        labels.push('Proyecto de informe final');
+        bandera = true;
+    }
 
-            labels.push(label);
-            bandera = true;
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_anexos_informe_final');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -2995,6 +3449,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinal').prop('disabled', true);
@@ -3024,6 +3494,19 @@ function abrirVisitaInspeccion() {
     });
   }
 
+  function confirmacionCorreccionesProyectoInformeFinal() {
+    let confirmacion_revision_proyecto_informe_final = $('#confirmacion_revision_proyecto_informe_final').val();
+    let label_observaciones_revision_diagnostico_proyecto_informe_final = $('#label_observaciones_revision_diagnostico_proyecto_informe_final');
+
+    if (confirmacion_revision_proyecto_informe_final === 'Si') {
+        label_observaciones_revision_diagnostico_proyecto_informe_final.text('Observaciones (*)');
+        $('#div_revision_proyecto_informe_final').show();
+    } else {
+        label_observaciones_revision_diagnostico_proyecto_informe_final.text('Observaciones');
+        $('#div_revision_proyecto_informe_final').hide();
+    }
+  }
+
   function registrarRevisionProyectoInformeFinal() {
     var bandera = false;
 
@@ -3035,7 +3518,10 @@ function abrirVisitaInspeccion() {
     let numero_informe = $('#numero_informe').val();
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
+    let confirmacion_revision_proyecto_informe_final = $('#confirmacion_revision_proyecto_informe_final').val();
+    let observaciones = $('#observaciones_revision_proyecto_informe_final').val();
     let url = `/revision_proyecto_informe_final`;
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3046,19 +3532,39 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('confirmacion_revision_proyecto_informe_final', confirmacion_revision_proyecto_informe_final);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_revision_proyecto_informe_final').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_revision_proyecto_informe_final');
+    let bandera_anexos = resultado_anexos.bandera;
 
-            labels.push(label);
-            bandera = true;
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if(confirmacion_revision_proyecto_informe_final === ''){
+        labels.push('¿Requiere correcciones?');
+        bandera = true;
+    }else if(confirmacion_revision_proyecto_informe_final === 'Si' ){
+        var fileInput = document.getElementById('revision_proyecto_informe_final');
+        var file = fileInput.files[0];
+        if (file) {
+            formData.append('revision_proyecto_informe_final', file);
         } else {
-            formData.append($(this).attr('id'), $(this).val());
+            labels.push('Proyecto de informe final');
+            bandera = true;
         }
-    });
+        
+        if (observaciones === '') {
+            labels.push('Observaciones');
+            bandera = true;
+        }
+    }
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3074,6 +3580,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinal').prop('disabled', true);
@@ -3194,6 +3716,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/correcciones_informe_final`;
+    let observaciones = $('#correccion_proyecto_informe_final').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3204,19 +3728,28 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_revision_proyecto_informe_final_corregido').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    var fileInput = document.getElementById('revision_proyecto_informe_final_corregido');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('revision_proyecto_informe_final_corregido', file);
+    } else {
+        labels.push('proyecto de informe final corregido');
+        bandera = true;
+    }
 
-            labels.push(label);
-            bandera = true;
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_correcion_proyecto_informe_final');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3232,6 +3765,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinalCorregido').prop('disabled', true);
@@ -3273,6 +3822,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/remitir_proyecto_informe_final_coordinaciones`;
+    let observaciones = $('#observaciones_informe_final_coordiaciones').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3283,19 +3834,25 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_revision_proyecto_informe_final_coordinacinoes').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    var fileInput = document.getElementById('revision_proyecto_informe_final_coordinacinoes');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('revision_proyecto_informe_final_coordinacinoes', file);
+    }
 
-            labels.push(label);
-            bandera = true;
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_informe_final_coordinaciones');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3311,6 +3868,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinalCoordinacinoes').prop('disabled', true);
@@ -3352,6 +3925,9 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/revision_informe_final_coordinaciones`;
+    var labels = [];
+    let observaciones = $('#observaciones_revision_informe_final_coordinaciones').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3362,23 +3938,28 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_revision_informe_final_coordinaciones').each(function() {
-        if ($(this).val() === '') {
-            if ($(this).attr('id') !== 'observaciones_revision_informe_final_coordinaciones') {
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    var fileInput = document.getElementById('revision_informe_final_coordinaciones');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('revision_informe_final_coordinaciones', file);
+    } else {
+        labels.push('Informe final revisado');
+        bandera = true;
+    }
 
-                labels.push(label);
-                bandera = true;
-            }else{
-                formData.append($(this).attr('id'), $(this).val());
-            }
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_revision_coordinacion');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3394,6 +3975,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinalCoordinacinoes').prop('disabled', true);
@@ -3435,6 +4032,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/revision_informe_final_intendente`;
+    let observaciones = $('#observaciones_revision_informe_final_intendente').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3445,23 +4044,28 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_revision_informe_final_intendente').each(function() {
-        if ($(this).val() === '') {
-            if ($(this).attr('id') !== 'observaciones_revision_informe_final_intendente') {
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    var fileInput = document.getElementById('revision_informe_final_intendente');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('revision_informe_final_intendente', file);
+    } else {
+        labels.push('Informe final revisado por la intendencia');
+        bandera = true;
+    }
 
-                labels.push(label);
-                bandera = true;
-            }else{
-                formData.append($(this).attr('id'), $(this).val());
-            }
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_revision_informe_final_intendente');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3477,6 +4081,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarProyectoInformeFinalCoordinacinoes').prop('disabled', true);
@@ -3506,6 +4126,18 @@ function abrirVisitaInspeccion() {
     });
   }
 
+  function medidaDeIntervencionInmediata() {
+    let medida_intervencion = document.getElementById('confirmacion_intervencion_inmediata').value;
+
+    if (medida_intervencion === 'Si') {
+        document.getElementById('labelObservacionesIntenvencionInmediata').textContent = 'Observaciones (*)';
+        $('#div_cargue_memorando_causales_intervencion').show();
+    }else{
+        document.getElementById('labelObservacionesIntenvencionInmediata').textContent = 'Observaciones';
+        $('#div_cargue_memorando_causales_intervencion').hide();
+    }
+  }
+
   function informeFinalFirmado() {
     var bandera = false;
 
@@ -3518,6 +4150,7 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/firmar_informe_final`;
+    let observaciones = $('#observaciones_firma_informe_final').val();
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3528,19 +4161,18 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_informe_final_firmado').each(function() {
-        if ($(this).val() === '') {
-            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-
-            labels.push(label);
-            bandera = true;
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    var fileInput = document.getElementById('informe_final_firmado');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('informe_final_firmado', file);
+    } else {
+        labels.push('Informe final firmado');
+        bandera = true;
+    }
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3590,6 +4222,9 @@ function abrirVisitaInspeccion() {
 
     var labels = [];
     let id = $('#id').val();
+    let id_entidad = $('#id_entidad').val();
+    let codigo = $('#codigo').val();
+    let sigla = $('#sigla').val();
     let etapa = $('#etapa').val();
     let estado = $('#estado').val();
     let estado_etapa = $('#estado_etapa').val();
@@ -3597,33 +4232,36 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/confirmacion_intervencion_inmediata`;
-    
-    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    var formData = new FormData();
-    formData.append('id', id);
-    formData.append('etapa', etapa);
-    formData.append('estado', estado);
-    formData.append('estado_etapa', estado_etapa);
-    formData.append('numero_informe', numero_informe);
-    formData.append('razon_social', razon_social);
-    formData.append('nit', nit);
+    let anexos_adicionales = [];
+    let confirmacion_intervencion_inmediata = $('#confirmacion_intervencion_inmediata').val();
+    let memorando_causales_intervencion = $('#memorando_causales_intervencion').val();
+    let observaciones = $('#observaciones_intervencion_inmediata').val();
 
-    var heads = {'X-CSRF-TOKEN': token}
+    if (confirmacion_intervencion_inmediata === '' || confirmacion_intervencion_inmediata === null ) {
+            labels.push('¿La situación de la vigilada amerita una medida de intervención inmediata, entre tanto se surte el traslado?');
+            bandera = true;
+    }
 
-    $('.required_confirmacion_intervencion_inmediata').each(function() {
-        if ($(this).val() === '') {
-            if ($(this).attr('id') !== 'observaciones_intervencion_inmediata') {
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
-
-                labels.push(label);
-                bandera = true;
-            }else{
-                formData.append($(this).attr('id'), $(this).val());
-            }
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
+    if ( confirmacion_intervencion_inmediata === 'Si' ) {
+        if (memorando_causales_intervencion === null || memorando_causales_intervencion === '') {
+            labels.push('Ciclo de vida memorando toma de posesión');
+            bandera = true;
         }
-    });
+        if (observaciones === null || observaciones === '') {
+            labels.push('Observaciones');
+            bandera = true;
+        }
+    }
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_confirmacion_intervencion_inmediata');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3639,6 +4277,40 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('memorando_causales_intervencion', memorando_causales_intervencion);
+    formData.append('confirmacion_intervencion_inmediata', confirmacion_intervencion_inmediata);
+    formData.append('observaciones_intervencion_inmediata', observaciones);
+    formData.append('id_entidad', id_entidad);
+    formData.append('codigo', codigo);
+    formData.append('sigla', sigla);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarConfirmacionIntervencionInmediata').prop('disabled', true);
@@ -3692,10 +4364,12 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/enviar_traslado`;
+    let observaciones = $('#observaciones_informe_para_traslado').val();
+    let anexos_adicionales = [];
 
     let grupo_inspeccion = [];
 
-    $('.tr_grupo_designados_traslado').each(function () {
+    /*$('.tr_grupo_designados_traslado').each(function () {
 
         var row = {};
             $(this).find('select').each(function() {
@@ -3708,7 +4382,7 @@ function abrirVisitaInspeccion() {
                 }
             });
             grupo_inspeccion.push(row);
-    })
+    })*/
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3720,22 +4394,9 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
-
-
-    /*if (bandera) {
-        var html = `<label>Todos los datos de la tabla de los usuarios a trasladar son necesarios</label`;
-
-        Swal.fire({
-          icon: "warning",
-          title: "Atención",
-          html: html,
-        });
-
-        return;
-    }*/
-
 
     $('.required_informe_traslado').each(function() {
         if ($(this).val() === '') {
@@ -3747,6 +4408,16 @@ function abrirVisitaInspeccion() {
             formData.append($(this).attr('id'), $(this).val());
         }
     });
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_informe_visita_para_traslado');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3762,6 +4433,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.abrirVisitaInspeccion').prop('disabled', true);
@@ -3803,6 +4490,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/informe_traslado_entidad`;
+    let observaciones = $('#observaciones_proyeccion_informe_traslado').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3813,6 +4502,7 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -3826,6 +4516,16 @@ function abrirVisitaInspeccion() {
             formData.append($(this).attr('id'), $(this).val());
         }
     });
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_proyeccion_informe_traslado');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -3841,6 +4541,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.abrirVisitaInspeccion').prop('disabled', true);
@@ -3890,6 +4606,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/registrar_pronunciamiento_entidad`;
+    let observaciones = $('#observaciones_registrar_pronunciamiento').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3900,6 +4618,7 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -3919,6 +4638,16 @@ function abrirVisitaInspeccion() {
         }
     });
 
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_registrar_pronunciamiento');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
         for (var i = 0; i < labels.length; i++) {
@@ -3933,6 +4662,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.abrirVisitaInspeccion').prop('disabled', true);
@@ -3974,6 +4719,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/registrar_valoracion_respuesta`;
+    let observaciones = $('#observaciones_valoracion_informacion_remitida').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -3984,8 +4731,18 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
+
+    var fileInput = document.getElementById('evaluacion_respuesta');
+    var file = fileInput.files[0];
+    if (file) {
+            formData.append('evaluacion_respuesta', file);
+    } else {
+            labels.push('Evaluación respuesta informe de visita');
+            bandera = true;
+    }
 
     $('.required_evaluacion_respuesta').each(function() {
         if ($(this).val() === '') {
@@ -3997,6 +4754,16 @@ function abrirVisitaInspeccion() {
             formData.append($(this).attr('id'), $(this).val());
         }
     });
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_valoracion_informacion_remitida');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     if (bandera) {
         var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
@@ -4012,6 +4779,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarConfirmacionIntervencionInmediata').prop('disabled', true);
@@ -4053,6 +4836,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/registrar_informe_hallazgos_finales`;
+    let observaciones = $('#observaciones_traslado_resultado_respuesta').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -4063,8 +4848,19 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_traslado_resultado_respuesta');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
 
     $('.required_informe_final_hallazgos').each(function() {
         if ($(this).val() === '') {
@@ -4093,6 +4889,23 @@ function abrirVisitaInspeccion() {
         return;
     }
 
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+
     $('.registrarConfirmacionIntervencionInmediata').prop('disabled', true);
 
     fetch(url,{
@@ -4120,6 +4933,110 @@ function abrirVisitaInspeccion() {
     });
   }
 
+  function guardarCitacionComiteInternoEvaluador() {
+    var bandera = false;
+
+    var labels = [];
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/citacion_comite_interno_evaluador`;
+    let observaciones = $('#observaciones_fecha_hora_citacion_comite_interno').val();
+    let fecha_hora_citacion = $('#fecha_hora_citacion_comite_interno').val();
+    let anexos_adicionales = [];
+
+    if (fecha_hora_citacion === '') {
+        labels.push('Fecha y hora de la citación');
+        bandera = true;
+    }
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('fecha_hora_citacion', fecha_hora_citacion);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_citacion_comite_interon');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.revisionDiagnostico').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.revisionDiagnostico').prop('disabled', false);
+    });
+  }
+
   function proponerActuacionAdministrativa() {
     var bandera = false;
 
@@ -4132,6 +5049,8 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/proponer_actuacion_administrativa`;
+    let observaciones = $('#observaciones_actuacion_administrativa').val();
+    let anexos_adicionales = [];
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -4142,8 +5061,29 @@ function abrirVisitaInspeccion() {
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
 
     var heads = {'X-CSRF-TOKEN': token}
+
+    var fileInput = document.getElementById('acta_actuacion_administrativa');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('acta_actuacion_administrativa', file);
+    } else {
+        labels.push('Acta del comité interno evaluador');
+        bandera = true;
+    }
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_actuacion_administrativa');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
 
     $('.required_actuacion_administrativa').each(function() {
         if ($(this).val() === '') {
@@ -4170,6 +5110,22 @@ function abrirVisitaInspeccion() {
         });
 
         return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
     }
 
     $('.registrarConfirmacionIntervencionInmediata').prop('disabled', true);
@@ -4335,41 +5291,35 @@ function abrirVisitaInspeccion() {
     let razon_social = $('#razon_social').val();
     let nit = $('#nit').val();
     let url = `/contenidos_finales_expedientes`;
+    let observaciones = $('#observaciones_expedientes_finales').val();
+    let anexos_adicionales = [];
+    var labels = [];
 
     let ciclos_vida = [];
-    let documentos_finales = [];
 
     $('.tr_ciclo_expediente_final').each(function () {
 
         var row = {};
-            $(this).find('input[type="text"]').each(function() {
+            $(this).find('input[type="text"], input[type="hidden"]').each(function() {
                 var key = $(this).attr('name');
                 var value = $(this).val();
                 row[key] = value;
-
-                if (value === '') {
-                    bandera = true;
-                }
             });
             ciclos_vida.push(row);
     })
 
-    $('.tr_documentos_finales').each(function () {
 
-        var row = {};
-            $(this).find('input[type="text"]').each(function() {
-                var key = $(this).attr('name');
-                var value = $(this).val();
-                row[key] = value;
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_finales');
+    let bandera_anexos = resultado_anexos.bandera;
 
-                if (value === '') {
-                    bandera = true;
-                }
-            });
-            documentos_finales.push(row);
-    })
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
 
-    if (bandera || documentos_finales.length < 1) {
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+    
+    if (bandera) {
         var html = `<label>Todos los datos de las tablas deben ser diligenciados</label>`;
 
         Swal.fire({
@@ -4385,13 +5335,29 @@ function abrirVisitaInspeccion() {
     var formData = new FormData();
     formData.append('id', id);
     formData.append('ciclos_vida', JSON.stringify(ciclos_vida) );
-    formData.append('documentos_finales', JSON.stringify(documentos_finales) );
     formData.append('etapa', etapa);
     formData.append('estado', estado);
     formData.append('estado_etapa', estado_etapa);
     formData.append('numero_informe', numero_informe);
     formData.append('razon_social', razon_social);
     formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
 
     var heads = {'X-CSRF-TOKEN': token}
 
@@ -4935,9 +5901,9 @@ function tipo_revisor_fiscal() {
     let tipo_revisor_fiscal = $('#tipo_revisor_fiscal').val();
 
     if (tipo_revisor_fiscal === 'PERSONA NATURAL') {
-        $('.razon_social_revision_fiscal').show();
-    }else{
         $('.razon_social_revision_fiscal').hide();
+    }else{
+        $('.razon_social_revision_fiscal').show();
     }
 }
 
@@ -5343,4 +6309,866 @@ function productoAbrirVisita() {
         document.getElementById('div_acta_apertura_visita').style.display = 'none';
         document.getElementById('div_grabacion_apertura_visita').style.display = 'none';
     }
+}
+
+function tipo_firma_informe_final() {
+    var forma_firma_documento = document.getElementById('tipo_firma_informe').value;
+
+    if (forma_firma_documento === 'firmar_online') {
+        
+
+    }else if(forma_firma_documento === 'cargar_documento_firmado'){
+        $('.div_cargar_firma').hide();
+        $('.div_documento_firmar').hide();
+        $('#div_cargue_informe_firmado').show();
+    }
+}
+
+function mostrarModalFirmarInformeFinal() {
+    $('#modalFirmarInformeFinal').modal('show');
+
+    //TODO: reservado para firma electronica
+    /*let enlace_informe_final_intendencia = document.getElementById('enlace_informe_final_intendencia').getAttribute('href');
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+
+    var regex = /\/d\/([a-zA-Z0-9_-]+)\//;
+    var match = enlace_informe_final_intendencia.match(regex);
+
+    var id_ruta = match ? match[1] : null;
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('enlace_informe_final_intendencia', id_ruta);
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+
+    var heads = {'X-CSRF-TOKEN': token};
+    var url = `/pdfDownload`;
+
+    fetch(url, {
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Error en la solicitud');
+             });
+            }
+        return response.json();
+    }).then(data => {
+        const message = data.message;
+        document.getElementById('divPdfIframe').innerHTML = `<iframe id="pdfIframe" style="width:100%; height:500px;" src="http://visitasdeinspeccion.com/pdf-viewer?file=docs/${message}"></iframe>`;
+    }).catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.diagnosticoSubsanado').prop('disabled', false);
+    });*/
+}
+
+function eliminarAnexoUpdate(button, url_archivo, nombre_archivo) {
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    let id = $('#id').val();
+    let numero_informe = $('#numero_informe').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let razon_social = $('#razon_social').val();
+    let url = `/eliminar_archivo_update`;
+
+    var fila = $(button).closest('tr');
+    var heads = {'X-CSRF-TOKEN': token}
+    var id_archivo = url_archivo.replace('https://drive.google.com/file/d/', '').replace('/view', '');
+
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nombre_archivo', nombre_archivo);
+    formData.append('id_archivo', id_archivo);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+
+    Swal.fire({
+        title: "¿Desea eliminar el anexo "+nombre_archivo+"?",
+        text: "No se podra recuperar el anexo",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Si, eliminar"
+      }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(url,{
+                method: 'POST',
+                headers: heads,
+                body: formData
+            }).then(response => {
+                if (!response.ok) {
+                  return response.json().then(data => {
+                    throw new Error(data.error || 'Error en la solicitud');
+                  });
+                }
+                return response.json();
+            })
+            .then(data => {
+                const message = data.message;
+                Swal.fire('Éxito!', message, 'success').then(()=>{
+                    fila.remove();
+                });
+            })
+            .catch(error => {
+                Swal.fire('Error', error.message, 'error');
+            }).finally(() => {
+                $('.enviarObservacion').prop('disabled', false);
+            });
+        }
+      });
+
+}   
+
+function guardar_documento_adicional_visita_inspeccion() {
+    var bandera = false;
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/guardar_documento_adicional_visita_inspeccion`;
+    let anexos_adicionales = [];
+    var labels = [];
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_visita_inspeccion');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    $('.sendButton').prop('disabled', true);
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarObservacion').prop('disabled', false);
+    });
+}
+
+//////////  Asuntos especiales /////////////
+
+function guardar_observacion_asunto_especial(accion) {
+    
+    var bandera = false;
+
+    let id = $('#id').val();
+    let observaciones = '';
+    if (accion === 'observacion') {
+        observaciones = $('#observaciones').val();
+    }else{
+        observaciones = $('#observaciones_cancelacion').val();
+    }
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/guardar_observacion_asunto_especial`;
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('observaciones', observaciones);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('accion', accion);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    if (observaciones === '') {
+        bandera = true;
+    }
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        html += '<li>Observaciones</li>';
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    $('.enviarObservacion').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarObservacion').prop('disabled', false);
+    });
+}
+
+function guardar_documento_adicional_asunto_especial() {
+    var bandera = false;
+
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/guardar_documento_adicional_asunto_especial`;
+    let anexos_adicionales = [];
+    var labels = [];
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_asuntos_especiales');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    $('.sendButton').prop('disabled', true);
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarObservacion').prop('disabled', false);
+    });
+}
+
+function guardar_memorando_traslado_grupo_asuntos_especiales() {
+    var bandera = false;
+
+    var labels = [];
+    let id = $('#id').val();
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let url = `/guardar_memorando_traslado_grupo_asuntos_especiales`;
+    let observaciones = $('#observaciones_memorando_traslado_grupo_asuntos_especiales').val();
+    let ciclo_vida_memorando_traslado_grupo_asuntos_especiales = $('#ciclo_vida_memorando_traslado_grupo_asuntos_especiales').val();
+    let anexos_adicionales = [];
+
+    if (ciclo_vida_memorando_traslado_grupo_asuntos_especiales === '') {
+        labels.push('Ciclo de vida del memorando de traslado al grupo de asuntos especiales');
+        bandera = true;
+    }
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observaciones);
+    formData.append('ciclo_vida_memorando_traslado_grupo_asuntos_especiales', ciclo_vida_memorando_traslado_grupo_asuntos_especiales);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_trasladar_memorando_grupo_asuntos_especiales');
+    let bandera_anexos = resultado_anexos.bandera;
+
+    if (bandera_anexos) {
+        labels.push(resultado_anexos.labels);
+        bandera = true;
+    }
+
+    anexos_adicionales = resultado_anexos.anexos_adicionales;
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.revisionDiagnostico').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.revisionDiagnostico').prop('disabled', false);
+    });
+}
+
+
+// Maestro entidades
+
+function estadoMatriculaRues() {
+    let estado_matricula = document.getElementById('estado_matricula_rues').value;
+
+    if (estado_matricula === 'ACTIVA') {
+        $('.permiten_notificacion_correo_electronico').show();
+        $('.en_liquidacion_rues').show();
+        $('.entidad_que_vigila_rues').show();
+        $('.objeto_social').show();
+        $('.ecomun').show();
+        $('.cafetera').show();
+        $('.vigilada_supersolidaria_segun_depuracion_crear').show();
+    }else{
+        $('.permiten_notificacion_correo_electronico').hide();
+        $('.correo_notificaciones_judiciales').hide();
+        $('.en_liquidacion_rues').hide();
+        $('.tipo_liquidacion_rues').hide();
+        $('.otro_tipo_liquidacion').hide();
+        $('.entidad_que_vigila_rues').hide();
+        $('.objeto_social').hide();
+        $('.ecomun').hide();
+        $('.cafetera').hide();
+        $('.vigilada_supersolidaria_segun_depuracion_crear').hide();
+        $('.entidad_debe_vigilar_segun_depuracion').hide();
+        $('.otro_ente_vigilancia').hide();
+    }
+
+    permitenNotificacionCorreoElectronico();
+    enLiquidacionRues();
+    otroTipoLiquidacion();
+    vigiladaSupersolidariaSegunDepuracion();
+    otroEnteVigilancia();
+}
+
+function permitenNotificacionCorreoElectronico() {
+    let permiten_notificacion_correo_electronico = document.getElementById('permiten_notificacion_correo_electronico').value;
+
+    if (permiten_notificacion_correo_electronico === 'NO INDICA' ) {
+        $('.correo_notificaciones_judiciales').show();
+        $('#label_correo_notificaciones_judiciales').text('Correo para notificaciones judiciales');
+    }else if(permiten_notificacion_correo_electronico === 'SI'){
+        $('.correo_notificaciones_judiciales').show();
+        $('#label_correo_notificaciones_judiciales').text('Correo para notificaciones judiciales (*)');
+    }
+    else{
+        $('.correo_notificaciones_judiciales').hide();
+    }
+}
+
+function enLiquidacionRues() {
+    let en_liquidacion_rues = document.getElementById('en_liquidacion_rues').value;
+
+    if (en_liquidacion_rues === 'SI') {
+        $('.tipo_liquidacion_rues').show();
+    }else{
+        $('.tipo_liquidacion_rues').hide();
+    }
+}
+
+function otroTipoLiquidacion() {
+    let tipo_liquidacion_rues = document.getElementById('tipo_liquidacion_rues').value;
+
+    if (tipo_liquidacion_rues === 'OTRA') {
+        $('.otro_tipo_liquidacion').show();
+    }else{
+        $('.otro_tipo_liquidacion').hide();
+    }
+}
+
+function enteVigilanciaRUES() {
+    let entidad_que_vigila_rues = document.getElementById('entidad_que_vigila_rues').value;
+
+    if (entidad_que_vigila_rues === 'OTRA') {
+        $('.otro_ente_vigilancia_rues').show();
+    }else{
+        $('.otro_ente_vigilancia_rues').hide();
+    }
+}
+function vigiladaSupersolidariaSegunDepuracion() {
+    let vigilada_supersolidaria_segun_depuracion = document.getElementById('vigilada_supersolidaria_segun_depuracion_crear').value;
+
+    if (vigilada_supersolidaria_segun_depuracion === 'NO') {
+        $('.entidad_debe_vigilar_segun_depuracion').show();  
+    }else{
+        $('.entidad_debe_vigilar_segun_depuracion').hide();
+    }
+}
+
+function otroEnteVigilancia() {
+    let entidad_debe_vigilar_segun_depuracion = document.getElementById('entidad_debe_vigilar_segun_depuracion').value;
+
+    if (entidad_debe_vigilar_segun_depuracion === 'OTRA') {
+        $('.otro_ente_vigilancia').show();
+    }else{
+        $('.otro_ente_vigilancia').hide();
+    }
+}
+
+function crearEntidadMaestra() {
+    var bandera = false;
+
+    var labels = [];
+    let codigo_entidad = $('#codigo_entidad').val();
+    let nit = $('#nit').val();
+    let razon_social = $('#razon_social').val();
+    let sigla = $('#sigla').val();
+    let nivel_supervision = $('#nivel_supervision').val();
+    let naturaleza_organizacion = $('#naturaleza_organizacion').val();
+    let tipo_organizacion = $('#tipo_organizacion').val();
+    let categoria = $('#categoria').val();
+    let grupo_niif = $('#grupo_niif').val();
+    let departamento = $('#departamento').val();
+    let ciudad_municipio = $('#ciudad_municipio').val();
+    let direccion = $('#direccion').val();
+    let numero_asociados = $('#numero_asociados').val();
+    let numero_empleados = $('#numero_empleados').val();
+    let total_activos = $('#total_activos').val();
+    let total_pasivos = $('#total_pasivos').val();
+    let total_patrimonio = $('#total_patrimonio').val();
+    let total_ingresos = $('#total_ingresos').val();
+    let fecha_ultimo_reporte = $('#fecha_ultimo_reporte').val();
+    let estado_matricula_rues = $('#estado_matricula_rues').val();
+    let ano_renovacion_matricula = $('#ano_renovacion_matricula').val();
+    let fecha_renovacion_matricula = $('#fecha_renovacion_matricula').val();
+    let permiten_notificacion_correo_electronico = $('#permiten_notificacion_correo_electronico').val();
+    let correo_notificaciones_judiciales = $('#correo_notificaciones_judiciales').val();
+    let en_liquidacion_rues = $('#en_liquidacion_rues').val();
+    let tipo_liquidacion_rues = $('#tipo_liquidacion_rues').val();
+    let otro_tipo_liquidacion = $('#otro_tipo_liquidacion').val();
+    let entidad_que_vigila_rues = $('#entidad_que_vigila_rues').val();
+    let otro_ente_vigilancia_rues = $('#otro_ente_vigilancia_rues').val();
+    let objeto_social = $('#objeto_social').val();
+    let ecomun = $('#ecomun').val();
+    let cafetera = $('#cafetera').val();
+    let vigilada_supersolidaria_segun_depuracion_crear = $('#vigilada_supersolidaria_segun_depuracion_crear').val();
+    let entidad_debe_vigilar_segun_depuracion = $('#entidad_debe_vigilar_segun_depuracion').val();
+    let otro_ente_vigilancia = $('#otro_ente_vigilancia').val();
+    let certificado_rues = $('#certificado_rues').val();
+    let representate_legal = $('#representate_legal').val();
+    let correo_representate_legal = $('#correo_representate_legal').val();
+    let telefono_representate_legal = $('#telefono_representate_legal').val();
+    let tipo_revisor_fiscal = $('#tipo_revisor_fiscal').val();
+    let razon_social_revision_fiscal = $('#razon_social_revision_fiscal').val();
+    let nombre_revisor_fiscal = $('#nombre_revisor_fiscal').val();
+    let direccion_revisor_fiscal = $('#direccion_revisor_fiscal').val();
+    let telefono_revisor_fiscal = $('#telefono_revisor_fiscal').val();
+    let correo_revisor_fiscal = $('#correo_revisor_fiscal').val();
+    let observaciones = $('#observaciones').val();
+    let url = `/crear_entidad_maestra`;
+
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+
+    if (nit === '') {
+        labels.push('Nit');
+        bandera = true;
+    }
+
+    if (razon_social === '') {
+        labels.push('Razón social');
+        bandera = true;
+    }
+
+    if (departamento === '') {
+        labels.push('Departamento');
+        bandera = true;
+    }
+
+    if (ciudad_municipio === '') {
+        labels.push('Ciudad / Municipio');
+        bandera = true;
+    }
+
+    if (direccion === '') {
+        labels.push('Dirección');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === '') {
+        labels.push('Estado de la matricula');
+        bandera = true;
+    }
+
+    if (ano_renovacion_matricula === '') {
+        labels.push('Último año de renovación de matricula');
+        bandera = true;
+    }
+
+    if (fecha_renovacion_matricula === '') {
+        labels.push('Fecha de renovación de matricula');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && permiten_notificacion_correo_electronico === '') {
+        labels.push('¿Permiten notificaciones por correo electrónico?');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && permiten_notificacion_correo_electronico === 'SI' && correo_notificaciones_judiciales === '') {
+        labels.push('Correo para notificaciones judiciales');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && en_liquidacion_rues === '' ) {
+        labels.push('En liquidación en RUES');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && en_liquidacion_rues === 'SI' && tipo_liquidacion_rues === '' ) {
+        labels.push('Tipo de liquidación en RUES');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && en_liquidacion_rues === 'SI' && tipo_liquidacion_rues === 'OTRA' && otro_tipo_liquidacion === '') {
+        labels.push('Otro tipo de liquidación');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && entidad_que_vigila_rues === '') {
+        labels.push('Entidad que vigila según RUES');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && entidad_que_vigila_rues === 'OTRA' && otro_ente_vigilancia_rues === '') {
+        labels.push('Otro ente de vigilancia');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && objeto_social === '') {
+        labels.push('Objeto social');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && ecomun === '') {
+        labels.push('¿Esta entidad es ecomun?');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && cafetera === '') {
+        labels.push('¿Esta entidad es cafetera?');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && vigilada_supersolidaria_segun_depuracion_crear === '') {
+        labels.push('¿Debe vigilar la superintendencia de la economía solidaria según el resultado de la depuración?');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && vigilada_supersolidaria_segun_depuracion_crear === 'NO' && entidad_debe_vigilar_segun_depuracion === '') {
+        labels.push('Entidad que debe vigilar según depuración');
+        bandera = true;
+    }
+
+    if (estado_matricula_rues === 'ACTIVA' && vigilada_supersolidaria_segun_depuracion_crear === 'NO' && entidad_debe_vigilar_segun_depuracion === 'OTRA' && otro_ente_vigilancia === '') {
+        labels.push('Otro ente de vigilancia');
+        bandera = true;
+    }
+
+    var fileInput = document.getElementById('certificado_rues');
+    var file = fileInput.files[0];
+    if (file) {
+        formData.append('certificado_rues', file);
+    } else {
+        labels.push('Certificado RUES');
+        bandera = true;
+    }
+
+    if (ano_renovacion_matricula === '') {
+        labels.push('representate_legal');
+        bandera = true;
+    }
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+          icon: "warning",
+          title: "Atención",
+          html: html,
+        });
+
+        return;
+    }
+
+    formData.append('codigo_entidad', codigo_entidad);
+    formData.append('nit', nit);
+    formData.append('razon_social', razon_social);
+    formData.append('sigla', sigla);
+    formData.append('nivel_supervision', nivel_supervision);
+    formData.append('naturaleza_organizacion', naturaleza_organizacion);
+    formData.append('tipo_organizacion', tipo_organizacion);
+    formData.append('grupo_niif', grupo_niif);
+    formData.append('departamento', departamento);
+    formData.append('ciudad_municipio', ciudad_municipio);
+    formData.append('direccion', direccion);
+    formData.append('numero_asociados', numero_asociados);
+    formData.append('numero_empleados', numero_empleados);
+    formData.append('total_activos', total_activos);
+    formData.append('total_pasivos', total_pasivos);
+    formData.append('total_patrimonio', total_patrimonio);
+    formData.append('total_ingresos', total_ingresos);
+    formData.append('fecha_ultimo_reporte', fecha_ultimo_reporte);
+
+    formData.append('estado_matricula_rues', estado_matricula_rues);
+    formData.append('ano_renovacion_matricula', ano_renovacion_matricula);
+    formData.append('fecha_renovacion_matricula', fecha_renovacion_matricula);
+    formData.append('permiten_notificacion_correo_electronico', permiten_notificacion_correo_electronico);
+    formData.append('correo_notificaciones_judiciales', correo_notificaciones_judiciales);
+    formData.append('en_liquidacion_rues', en_liquidacion_rues);
+    formData.append('tipo_liquidacion_rues', tipo_liquidacion_rues);
+    formData.append('otro_tipo_liquidacion', otro_tipo_liquidacion);
+    formData.append('entidad_que_vigila_rues', entidad_que_vigila_rues);
+    formData.append('otro_ente_vigilancia_rues', otro_ente_vigilancia_rues);
+    formData.append('objeto_social', objeto_social);
+    formData.append('ecomun', ecomun);
+    formData.append('cafetera', cafetera);
+    formData.append('vigilada_supersolidaria_segun_depuracion_crear', vigilada_supersolidaria_segun_depuracion_crear);
+    formData.append('entidad_debe_vigilar_segun_depuracion', entidad_debe_vigilar_segun_depuracion);
+    formData.append('otro_ente_vigilancia', otro_ente_vigilancia);
+    formData.append('certificado_rues', certificado_rues);
+
+    formData.append('representate_legal', representate_legal);
+    formData.append('correo_representate_legal', correo_representate_legal);
+    formData.append('telefono_representate_legal', telefono_representate_legal);
+    formData.append('tipo_revisor_fiscal', tipo_revisor_fiscal);
+    formData.append('razon_social_revision_fiscal', razon_social_revision_fiscal);
+    formData.append('nombre_revisor_fiscal', nombre_revisor_fiscal);
+    formData.append('direccion_revisor_fiscal', direccion_revisor_fiscal);
+    formData.append('telefono_revisor_fiscal', telefono_revisor_fiscal);
+    formData.append('correo_revisor_fiscal', correo_revisor_fiscal);
+    formData.append('observaciones', observaciones);
+    formData.append('categoria', categoria);
+
+    var heads = {'X-CSRF-TOKEN': token}
+
+    $('.revisionDiagnostico').prop('disabled', true);
+
+    fetch(url,{
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || 'Error en la solicitud');
+          });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(()=>{
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.revisionDiagnostico').prop('disabled', false);
+    });
 }

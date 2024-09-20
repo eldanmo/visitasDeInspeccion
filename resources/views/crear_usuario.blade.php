@@ -15,10 +15,12 @@
                     <select class="form-control" name="profile" id="profile" required>
                         <option value="">Seleccione</option>
                         <option value="Administrador">Administrador</option>
-                        <option value="Coordinador">Coordinador</option>
+                        <option value="Coordinador">Coordinación visitas de inspección</option>
+                        <option value="Coordinacion asuntos especiales">Coordinacion asuntos especiales</option>
                         <option value="Delegado">Delegado</option>
                         <option value="Intendente">Intendente</option>
                         <option value="Contratista">Inspector</option>
+                        <option value="Profesional asuntos especiales">Profesional asuntos especiales</option>
                     </select>
                 </div>
             </div>

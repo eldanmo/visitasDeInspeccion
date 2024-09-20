@@ -15,12 +15,14 @@
                 <div class="form-group col-12 col-sm-4">
                     <label class="form-label" for="rol">Rol</label>
                     <select name="rol" class="form-control">
-                        <option value="" selected>Seleccione</option>
-                        <option value="Administrador" {{ request('rol') == 'Administrador' ? 'selected' : '' }}>Administración</option>
-                        <option value="Coordinador" {{ request('rol') == 'Coordinador' ? 'selected' : '' }}>Coordinación</option>
+                        <option value="">Seleccione</option>
+                        <option value="Administrador" {{ request('rol') == 'Administrador' ? 'selected' : '' }}>Administrador</option>
+                        <option value="Coordinador" {{ request('rol') == 'Coordinador' ? 'selected' : '' }}>Coordinación visitas de inspección</option>
+                        <option value="Coordinacion asuntos especiales" {{ request('rol') == 'Coordinacion asuntos especiales' ? 'selected' : '' }}>Coordinacion asuntos especiales</option>
                         <option value="Delegado" {{ request('rol') == 'Delegado' ? 'selected' : '' }}>Delegatura</option>
                         <option value="Intendente" {{ request('rol') == 'Intendente' ? 'selected' : '' }}>Intendencia</option>
                         <option value="Contratista" {{ request('rol') == 'Contratista' ? 'selected' : '' }}>Inspección</option>
+                        <option value="Profesional asuntos especiales" {{ request('rol') == 'Profesional asuntos especiales' ? 'selected' : '' }}>Profesional asuntos especiales</option>
                     </select>
                 </div>
             </div>
@@ -53,7 +55,7 @@
                                 @elseif($usuario->profile === 'Administrador')
                                     Administración
                                 @elseif($usuario->profile === 'Coordinador')
-                                    Coordinación
+                                    Coordinación visitas de inspección
                                 @elseif($usuario->profile === 'Delegado')
                                    Delegatura
                                 @elseif($usuario->profile === 'Intendente')
@@ -104,11 +106,13 @@
                         <label class="form-label" for="rol">Rol (*)</label>
                         <select class="form-control" name="profile" id="profile" required>
                             <option value="">Seleccione</option>
-                            <option value="Administrador">Administración</option>
-                            <option value="Coordinador">Coordinación</option>
-                            <option value="Delegado">Delegatura</option>
-                            <option value="Intendente">Intendencia</option>
-                            <option value="Contratista">Inspección</option>
+                            <option value="Administrador" >Administrador</option>
+                            <option value="Coordinador" >Coordinación visitas de inspección</option>
+                            <option value="Coordinacion asuntos especiales" >Coordinacion asuntos especiales</option>
+                            <option value="Delegado" >Delegatura</option>
+                            <option value="Intendente" >Intendencia</option>
+                            <option value="Contratista" >Inspección</option>
+                            <option value="Profesional asuntos especiales" >Profesional asuntos especiales</option>
                         </select>
                     </div>
                 </div>

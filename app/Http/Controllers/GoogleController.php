@@ -12,7 +12,10 @@ class GoogleController extends Controller
     public function redirectToGoogle()
     {
         return Socialite::driver('google')
-            ->scopes(['https://www.googleapis.com/auth/drive.file'])
+            ->scopes([
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/spreadsheets'
+            ])
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
             ->redirect();
     }
@@ -21,10 +24,10 @@ class GoogleController extends Controller
     {
         $user_google = Socialite::driver('google')->stateless()->user();
 
-        /*$emailDomain = explode('@', $user_google->getEmail())[1];
+        $emailDomain = explode('@', $user_google->getEmail())[1];
         if ($emailDomain !== 'supersolidaria.gov.co') {
             return redirect('/')->with('error', 'El dominio de correo electrónico no es válido.');
-        }*/
+        }
 
         $user = User::updateOrCreate([
             'google_id' => $user_google->getId(),

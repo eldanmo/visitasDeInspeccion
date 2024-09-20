@@ -5,23 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ConteoDias extends Model
+class HistoricoSolicitudDiaAdicional extends Model
 {
-
-    protected $table = 'conteo_dias';
-
     use HasFactory;
 
+    protected $table = 'historico_solicitud_dias_adicionales';
+
     protected $fillable = [
-        'id_informe',
-        'etapa',
-        'fecha_inicio',
-        'fecha_fin',
-        'dias_habiles',
-        'conteo_dias',
-        'fecha_limite_etapa',
+        'dias',
+        'observacion',
+        'estado',
+        'id_solicitud',
         'usuario_creacion',
-        'proceso'
     ];
 
     public function usuario()

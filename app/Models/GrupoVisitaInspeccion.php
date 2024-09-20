@@ -19,6 +19,7 @@ class GrupoVisitaInspeccion extends Model
         'enlace_hallazgos',
         'informe_firmado',
         'usuario_creacion',
+        'permiso_carpeta_drive',
     ];
 
     public function usuarioCreacion()

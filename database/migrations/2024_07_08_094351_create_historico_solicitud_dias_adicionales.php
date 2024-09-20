@@ -11,16 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('grupo_vista_inspeccion', function (Blueprint $table) {
+        Schema::create('historico_solicitud_dias_adicionales', function (Blueprint $table) {
             $table->id();
-            $table->string('id_informe');
-            $table->string('id_usuario');
-            $table->string('rol');
+            $table->integer('dias');
+            $table->text('observacion')->nullable();
             $table->string('estado');
-            $table->longText('enlace_hallazgos')->nullable();
-            $table->string('informe_firmado')->nullable();
+            $table->string('id_solicitud');
             $table->string('usuario_creacion');
-            $table->string('permiso_carpeta_drive')->nullable();
             $table->timestamps();
         });
     }
@@ -30,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('grupo_vista_inspeccion');
+        Schema::dropIfExists('historico_solicitud_dias_adicionales');
     }
 };

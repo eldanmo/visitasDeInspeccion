@@ -5,23 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ConteoDias extends Model
+class AnexoRegistro extends Model
 {
-
-    protected $table = 'conteo_dias';
-
     use HasFactory;
 
+    protected $table = 'anexos_registro';
+
     protected $fillable = [
-        'id_informe',
-        'etapa',
-        'fecha_inicio',
-        'fecha_fin',
-        'dias_habiles',
-        'conteo_dias',
-        'fecha_limite_etapa',
+        'nombre',
+        'ruta',
+        'id_entidad',
+        'proceso',
+        'sub_proceso',
+        'id_sub_proceso',
+        'tipo_anexo',
+        'id_tipo_anexo',
+        'estado',  
         'usuario_creacion',
-        'proceso'
     ];
 
     public function usuario()

@@ -23,6 +23,7 @@ class HistorialVisitas extends Model
         'fecha_inicio',
         'fecha_fin',
         'conteo_dias',
+        'proceso',
         'fecha_limite_etapa',
         'usuario_creacion',
     ];

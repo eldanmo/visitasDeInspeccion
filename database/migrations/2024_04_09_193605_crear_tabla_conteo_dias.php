@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('conteo_dias')->nullable();
             $table->date('fecha_limite_etapa')->nullable();
             $table->string('usuario_creacion');
+            $table->string('proceso');
             $table->timestamps();
         });
     }
