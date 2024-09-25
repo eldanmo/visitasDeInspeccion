@@ -21,21 +21,24 @@ use App\Models\HistoricoSolicitudDiaAdicional;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
-use Google\Client;
-use Google\Service\Drive;
-use Google\Service\Drive\DriveFile;
-use Google\Service\Drive\Resource\Folder;
-use Google\Service\Drive\Permission;
-use App\Services\GoogleDriveService;
-use Google\Service\AnalyticsData\OrderBy;
+/*use Google\Client;
+use Google\Service\Drive;*/
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class DiagnosticoController extends Controller
 {
+
+    /**
+     * Muestra el formulario para crear un diagnóstico.
+     *
+     * Recupera el número de días configurados para el diagnóstico de intendencia
+     * y el nombre del usuario autenticado.
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'crear_diagnostico' con los días del diagnóstico y el nombre del usuario autenticado.
+    */
 
     public function crear()
     {
@@ -47,6 +50,25 @@ class DiagnosticoController extends Controller
             'nombreUsuario' => $nombreUsuario
         ]);
     }
+
+    /**
+     * Creación del diagnóstico para una entidad.
+     *
+     * Valida los datos de entrada y crea un nuevo diagnóstico asociado a una entidad. 
+     * Realiza las siguientes acciones:
+     *  - Crea el diagnóstico si no existe un informe activo para la entidad.
+     *  - Asigna el diagnóstico al usuario creador y lo marca como vigente.
+     *  - Actualiza una hoja de cálculo en Google Sheets con los datos del diagnóstico.
+     *  - Actualiza el historial de la visita de la entidad.
+     *  - Crea el registro para el conteo de días del diagnóstico.
+     *  - Envía una notificación por correo electrónico al creador del diagnóstico.
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos del diagnóstico.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el diagnóstico se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function crear_diagnostico(Request $request) {
 
@@ -86,6 +108,36 @@ class DiagnosticoController extends Controller
             $visita_inspeccion->numero_informe = $visita_inspeccion->id . $anio_actual;
             $visita_inspeccion->save();
 
+            $this->create_sheets($visita_inspeccion->id, 
+                                $validatedData['nit'],
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                $visita_inspeccion->id . $anio_actual,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL
+                            );
+
             $this->historialInformes($visita_inspeccion->id, 'CREACIÓN', 'DIAGNÓSTICO INTENDENCIA', 'VIGENTE', date('Y-m-d'), '', 'VIGENTE', '', $validatedData['fecha_inicio_diagnostico'], NULL, '', $validatedData['fecha_fin_diagnostico']);
             $this->conteoDias($visita_inspeccion->id, 'DIAGNÓSTICO INTENDENCIA', $validatedData['fecha_inicio_diagnostico'], NULL);
 
@@ -104,6 +156,21 @@ class DiagnosticoController extends Controller
         }
 
     }
+
+    /**
+     * Envía correos electrónicos a uno o varios usuarios.
+     *
+     * Este método envía un correo electrónico a un usuario individual o a un grupo de usuarios. 
+     * Dependiendo del tipo de parámetro `$usuario`, realiza lo siguiente:
+     *  - Si `$usuario` es un entero o una cadena (ID del usuario), envía un correo al usuario correspondiente.
+     *  - Si `$usuario` es un arreglo de usuarios, envía un correo a cada uno de los usuarios en el arreglo.
+     *
+     * @param int|string|array $usuario Puede ser el ID del usuario (int o string) o un arreglo de objetos de usuario.
+     * @param string $asunto El asunto del correo electrónico (opcional, por defecto vacío).
+     * @param array $datos_adicionales Datos adicionales para ser incluidos en el correo (opcional, por defecto vacío).
+     *
+     * @return void
+    */
 
     public function enviar_correos($usuario, $asunto = '', $datos_adicionales = []){
 
@@ -124,6 +191,30 @@ class DiagnosticoController extends Controller
         }
 
     }
+
+    /**
+     * Registra un historial de informes de visitas de inspección.
+     *
+     * Este método crea un registro en la tabla de historial de informes asociada a un informe de visita de inspección, 
+     * detallando la acción, etapa, estado y otros datos relacionados con el informe.
+     * También registra la información en los logs para seguimiento.
+     *
+     * @param int $id_informe ID del informe al que se asocia el historial.
+     * @param string $accion Acción realizada en el informe (ejemplo: 'CREACIÓN', 'ACTUALIZACIÓN').
+     * @param string $etapa Etapa del proceso en la que se encuentra el informe.
+     * @param string $estado Estado actual del informe (ejemplo: 'VIGENTE', 'FINALIZADO').
+     * @param string $fecha_creacion Fecha de creación del historial.
+     * @param string|null $observaciones Comentarios u observaciones adicionales (opcional).
+     * @param string $estado_etapa Estado de la etapa actual del proceso (ejemplo: 'VIGENTE', 'PENDIENTE').
+     * @param string|null $usuario_asignado Usuario asignado para la siguiente etapa o acción (opcional).
+     * @param string $fecha_inicio Fecha de inicio de la etapa o proceso.
+     * @param string|null $fecha_fin Fecha de finalización de la etapa o proceso (opcional).
+     * @param int|null $conteo_dias Cantidad de días asociados a la etapa o proceso (opcional).
+     * @param string|null $fecha_limite_etapa Fecha límite para finalizar la etapa (opcional).
+     * @param string $proceso Tipo de proceso (por defecto 'VISITA_INSPECCION').
+     *
+     * @return void
+    */
 
     public function historialInformes($id_informe, $accion, $etapa, $estado, $fecha_creacion, $observaciones, $estado_etapa, $usuario_asignado, $fecha_inicio, $fecha_fin, $conteo_dias, $fecha_limite_etapa, $proceso = 'VISITA_INSPECCION') {
         $usuarioCreacionId = Auth::id();
@@ -161,6 +252,22 @@ class DiagnosticoController extends Controller
         ]);
     }
 
+    /**
+     * Registra el conteo de días hábiles para una etapa de un informe de visita de inspección.
+     *
+     * Este método calcula y registra el número de días hábiles permitidos para completar una etapa de inspección,
+     * tomando en cuenta los días no laborales en Colombia y la cantidad de días asignados para la etapa.
+     * Si la etapa no requiere días hábiles, se obtiene la fecha límite de la etapa anterior.
+     *
+     * @param int $id_informe ID del informe al que se asocia el conteo de días.
+     * @param string $etapa Nombre de la etapa para la que se realiza el conteo de días.
+     * @param string $fecha_inicial Fecha de inicio de la etapa.
+     * @param string|null $fecha_final Fecha de finalización de la etapa (opcional).
+     * @param string $proceso Tipo de proceso, por defecto 'VISITAS_INSPECCION'.
+     *
+     * @return void
+    */
+
     public function conteoDias($id_informe, $etapa, $fecha_inicial, $fecha_final, $proceso = 'VISITAS_INSPECCION') {
         $usuarioCreacionId = Auth::id();
 
@@ -196,6 +303,21 @@ class DiagnosticoController extends Controller
         $conteo_dias->save();
     }
 
+    /**
+     * Actualiza el número de días habiles transcurridos.
+     *
+     * Este método calcula y actualiza el número de días hábiles transcurridos en una etapa de inspección,
+     * tomando en cuenta los días no laborales en Colombia y la cantidad de días asignados para la etapa.
+     *
+     * @param int $id_informe ID del informe al que se asocia el conteo de días.
+     * @param string $etapa Nombre de la etapa para la que se realiza el conteo de días.
+     * @param string $fecha_inicial Fecha de inicio de la etapa.
+     * @param string|null $fecha_final Fecha de finalización de la etapa (opcional).
+     * @param string $tipo Tipo de proceso ejecutado, por defecto ''.
+     *
+     * @return void
+    */
+
     public function actualizarConteoDias($id_informe, $etapa, $fecha_final, $tipo = '') {
 
         $conteo_dia = 0;
@@ -219,11 +341,36 @@ class DiagnosticoController extends Controller
 
     }
 
+    /**
+     * Verifica los días habiles.
+     *
+     * Este método verifica los días habiles en Colombia
+     *
+     * @param string $fecha Fecha que recibe la función.
+     * @param array $diasFestivosColombia arreglo con los días festivos.
+     *
+     * @return void
+    */
+
     public function esDiaHabilColombia($fecha, $diasFestivosColombia) {
         $diaSemana = date('N', strtotime($fecha));
     
         return $diaSemana >= 1 && $diaSemana <= 5 && !in_array($fecha, $diasFestivosColombia);
     }
+
+    /**
+     * Sumatoría de días habiles.
+     *
+     * Este método realiza la sumatoria de días habiles transcurridos
+     *
+     * @param string $fechaInicial Fecha que recibe la función.
+     * @param string $dias cantidad de días a sumar.
+     * @param array $diasFestivosColombia arreglo con los días festivos.
+     * @param string $id_informe identificador de la visita de inspección.
+     * @param string $etapa etapa en la que se encuentra la visita de inspección.
+     *
+     * @return date
+    */
 
     public function sumarDiasHabiles($fechaInicial, $dias, $diasFestivosColombia, $id_informe = '', $etapa='') { //TODO: verificar conteo de dias 0
 
@@ -255,6 +402,16 @@ class DiagnosticoController extends Controller
         
         return date('Y-m-d', $fecha);
     }
+
+    /**
+     * Muestra el formulario con todas las visitas de inspección.
+     * 
+     * Metodo para la consulta de las visitas de inspección
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos para los filtros de la consulta.
+     * 
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_informe' con los días de la visita de inspección, usuarios y parametros.
+    */
 
     public function consultar_informes(Request $request) {
 
@@ -319,6 +476,17 @@ class DiagnosticoController extends Controller
         ]);
     }
 
+    /**
+     * Muestra el formulario con todas las visitas de inspección.
+     * 
+     * Metodo para la consulta de las visitas de inspección
+     * 
+     * @param string $id Id que recibe de la visita de inspección.
+     *
+     * 
+     * @return \Illuminate\View\View Devuelve la vista 'detalle_informe' con los usuarios totales y los datos asociados a la visita de inspección.
+    */
+
     public function vista_informe($id)
     {
         $informe = VisitaInspeccion::where('id', $id)
@@ -340,10 +508,24 @@ class DiagnosticoController extends Controller
         ]);
     }
 
+    /**
+     * Agregar observación a una visita de inspección o la cancela
+     *
+     * Agrega una observación a la visita de inspección. 
+     * Realiza las siguientes acciones:
+     *  - Actualiza el historial de la visita de la entidad.
+     *  - Envía una notificación por correo electrónico a los usuarios actuales.
+     * 
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos de la observación o cancelación.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el diagnóstico se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function guardar_observacion(Request $request) {
         try {
-
-            $usuarioCreacionId = Auth::id();
 
             $validatedData = $request->validate([
                 'observaciones' => 'required',
@@ -394,6 +576,15 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Obtiene todas las visitas de inspección en curso (no canceladas ni finalizadas)
+     *
+     * Calcula la fecha límite para cada etapa en función de los días hábiles y las fechas festivas.
+     * 
+     * Si la etapa está vencida o a punto de vencer, se envía una alerta por correo electrónico a los usuarios correspondientes.
+     * 
+    */
 
     public function actualizar_dias_visitas() {
         $fecha_actual = now();
@@ -514,6 +705,15 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Obtiene todas las visitas de inspección en curso (no canceladas ni finalizadas)
+     *
+     * Calcula la fecha límite para cada etapa en función de los días hábiles y las fechas festivas.
+     * 
+     * Si la etapa está vencida o a punto de vencer, se envía una alerta por correo electrónico a los usuarios correspondientes.
+     * 
+    */
+
     public function actualizar_historico_visitas() {
 
         $visita_inspeccion = VisitaInspeccion::whereNotIn('etapa', ['CANCELADO', 'FINALIZADO'])
@@ -541,6 +741,20 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Obtiene la cantidad de días hábiles entre dos fechas.
+     *
+     * Recorre las fechas desde la fecha inicial hasta la fecha final,
+     * verificando si cada día es un día hábil (lunes a viernes) y no es un día festivo.
+     * Actualiza el conteo de días hábiles y emite un mensaje si se ha actualizado.
+     * 
+     * @param $fechaInicial Fecha inicial del conteo de días hábiles.
+     * @param $fechaFinal Fecha final del conteo de días hábiles.
+     * @param array $diasFestivosColombia Array de fechas que representan días no laborales en Colombia.
+     *
+     * @return int Cantidad de días hábiles entre las fechas especificadas.
+    */
+
     public function contarDiasHabiles($fechaInicial, $fechaFinal, $diasFestivosColombia) {
         $diasHabiles = 0;
         $fecha = $fechaInicial->copy();
@@ -552,6 +766,17 @@ class DiagnosticoController extends Controller
         }
         return $diasHabiles;
     }
+
+    /**
+     * Obtiene los días restantes de una visita
+     *
+     * Verifica cuantos días falta para el vencimiento de una etapa de una visita
+     * 
+     * @param string $fechaLimite fecha inicial del conteo de días habiles.
+     * @param string $diasFestivosColombia días no laborales.
+     *
+     * @return int días habiles para el vencimiento de la etapa
+    */
 
     public function diasHabilesRestantes($fechaLimite, $diasFestivos) {
         $contador = 0;
@@ -568,10 +793,40 @@ class DiagnosticoController extends Controller
         }
         return $contador;
     }
+
+    /**
+     * obtiene los días festivos
+     *
+     * 
+     * @param object $fecha fecha inicial del conteo de días habiles.
+     * @param array $diasFestivos días no laborales.
+     *
+     * @return array días festivos en formato Y-m-d
+    */
     
     private function esFestivo($fecha, $diasFestivos) {
         return in_array($fecha->format('Y-m-d'), $diasFestivos);
     }
+
+    /**
+     * Finaliza el diagnóstico a una entidad
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga el diagnóstico a drive
+     *  - Suma los días habiles
+     *  - Actualiza el estado de la etapa
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza la hoja de google sheets
+     *  - Actualiza el historial de informes
+     *  - Actualiza el estado de la entidad a eliminada
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el diagnóstico se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function finalizar_diagnostico(Request $request) {
         try {
@@ -725,8 +980,6 @@ class DiagnosticoController extends Controller
 
                 $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
 
-                
-
                 $visita_inspeccion->etapa = 'ASIGNACIÓN GRUPO DE INSPECCIÓN';
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->fecha_fin_diagnostico = date('Y-m-d');
@@ -734,9 +987,18 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->carpeta_drive = $folderId;
                 $visita_inspeccion->save();
 
+                $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
                 $this->historialInformes($validatedData['id'], 'FINALIZACIÓN DIAGNÓSTICO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observacion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
+
+                $entidad = Entidad::where('id', $visita_inspeccion->id_entidad)
+                                    ->first();
+
+                $entidad->estado = 'ELIMINADA';        
+                $entidad->motivo = 'diagnóstico cargado';       
+                $entidad->save();       
 
                 $successMessage = 'Diagnóstico enviado correctamente';
 
@@ -747,6 +1009,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Asignar grupo de inspección
+     * 
+     * Se asigna el grupo de inpección que realizará la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación al grupo de inspección
+     *  - Comparte la carpeta de google drive
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el diagnóstico se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function asignar_grupo_inspeccion(Request $request) {
         try {
@@ -855,6 +1136,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Asignar grupo de inspección
+     * 
+     * Se asigna el grupo de inpección que realizará la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Verifica el resultado de la revisión
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function guardar_revision_diagnostico(Request $request){
 
@@ -965,6 +1266,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Registra la subsanación del documento diagnóstico
+     * 
+     * Se registra el resultado de la subsanación del documento diagnóstico
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - guarda los anexos adicionales en drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function finalizar_subasanar_diagnostico(Request $request){
 
         try {
@@ -1066,6 +1387,27 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Guardar plan de visita de inspección 
+     * 
+     * Se guarda el plan de visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - guarda el plan de visita en drive
+     *  - guarda los anexos adicionales en drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function guardar_plan_visita(Request $request) {
         try {
@@ -1180,6 +1522,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Verificar plan de visita de inspección 
+     * 
+     * Se confirma si el plan de visita de inspección se debe modificar o no
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function revisar_plan_visita(Request $request){
 
@@ -1296,6 +1657,25 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Confirmar de requerimiento previo a la visita de inspección 
+     * 
+     * Se confirma si es necesario realizar requerimiento previo de la visita de inspección a la organización solidaria
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function confirmacion_informacion_previa_visita(Request $request){
 
         try {
@@ -1383,28 +1763,6 @@ class DiagnosticoController extends Controller
 
                     $successMessage = 'Se envío la notificación para la creación de cartas de presentación previa a la visita';
 
-                    /*$proxima_etapa = 'EN APERTURA DE VISITA DE INSPECCIÓN';
-
-                    $asunto_email = 'Realizar apertura de la visita de inspección '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'Realizar apertura de la visita de inspección '. $validatedData['numero_informe'],
-                                                'mensaje' => 'Se requiere que realice la apertura de la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                    $validatedData['nit'] ];
-
-                    $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
-                                            ->where('rol', 'Lider de visita')
-                                            ->where('estado', 'ACTIVO')
-                                            ->first();
-
-                    $usuario_lider_visita = User::where('id', $usuario_lider_visita->id_usuario)
-                                            ->first();
-
-                    $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
-                    
-                    $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
-
-                    $this->historialInformes($validatedData['id'], 'NEGACIÓN DE REQUERIMIENTO DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
-
-                    $successMessage = 'Se envió la soliditud de apertura de la visita correctamente';*/
                 }
 
                 $catidad_dias_etapa = Parametro::select('dias')
@@ -1435,6 +1793,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Finalizar requerimiento previo a la visita de inspección 
+     * 
+     * Se registra el requerimiento previo de la visita de inspección a la organización solidaria
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function finalizar_requerimiento_informacion(Request $request){
 
@@ -1509,6 +1886,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Ragistrar la respuesta al requerimiento previo a la visita de inspección 
+     * 
+     * Se registra la respuesta al requerimiento previo de la visita de inspección a la organización solidaria
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Se cargan los adjuntos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function registro_respuesta_informacion_adicional(Request $request)
     {
@@ -1628,6 +2025,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Valorar la información recibida por parte de la entidad 
+     * 
+     * Se registra la valoración de la respuesta que emite la entidad solidaria
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Se cargan los adjuntos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function valoracion_informacion_recibida(Request $request){
         try {
@@ -1756,6 +2173,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Confirmación de realización de la visita de inspección
+     * 
+     * Se confirma si es necesario realizar la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Se cargan los adjuntos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function confirmacion_visita(Request $request){
         try {
         $proxima_etapa = '';
@@ -1883,6 +2320,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Registro de realización de cartas de presentación previo a  la visita de inspección
+     * 
+     * Se registra la carta de presentación que se envía a la entidad previo a la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+
     public function cartas_presentacion(Request $request){
 
         try {
@@ -1961,6 +2418,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Abrir la visita de inspección
+     * 
+     * Se realiza la apertura de la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Se cargan los adjuntos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function abrir_visita_inspeccion(Request $request) {
         try {
             $validatedData = $request->validate([
@@ -1978,7 +2455,7 @@ class DiagnosticoController extends Controller
                 'anexo_abrir_visita.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'acta_apertura_visita' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx|required_if:documento_apertura_visita,Acta de apertura',
                 'grabacion_apertura_visita' => 'required_if:documento_apertura_visita,Grabación de apertura',
-                'carta_salvaguarda' => 'required|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'carta_salvaguarda' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -2152,6 +2629,25 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Iniciar la visita de inspección
+     * 
+     * Se da el inicio de la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function iniciar_visita_inspeccion(Request $request){
 
         try {
@@ -2248,6 +2744,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Finalizar la visita de inspección
+     * 
+     * Se da fin a la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function cerrar_visita_inspeccion(Request $request){
         try {
@@ -2362,6 +2878,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Se cargan los archivos al google drive
+     * 
+     * Función para cargar archivos a google drive
+     *
+     * @param file $uploadedFiles documeto a cargar.
+     * @param string $fileNames nombre del documento a cargar.
+     * @param string $folderId id de la carpeta donde se cargara el documento.
+     * @param string $id_entidad id de la entidad.
+     * @param string $proceso proceso al que pertenece el documento.
+     * @param string $sub_proceso sub proceso del proceso.
+     * @param string $id_sub_proceso id del subproceso.
+     * @param string $tipo_anexo tipo de anexo.
+     * @param string $id_tipo_anexo id del tipo de anexo.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function cargarArchivosGoogle($uploadedFiles, $fileNames, $folderId, $id_entidad, $proceso, $sub_proceso, $id_sub_proceso, $tipo_anexo, $id_tipo_anexo ) {
         $accessToken = auth()->user()->google_token;
         $anexos_adicionales = [];
@@ -2435,6 +2971,26 @@ class DiagnosticoController extends Controller
             'data' => $anexos_adicionales
         ];
     }
+
+    /**
+     * Solicitar días adicionales para finalizar la visita de inspección
+     * 
+     * Se solicitan días adicionales para finalizar la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function solicitar_dias_adicionales(Request $request){
         try {
@@ -2517,6 +3073,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * confirmar días adicionales para finalizar la visita de inspección coordinación
+     * 
+     * Se confirma o se rechaza la solicitud de días adicionales por parte de la coordinación del grupo de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function confirmar_dias_adicionales_coordinacion(Request $request){
         try {
@@ -2609,6 +3185,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * confirmar días adicionales para finalizar la visita de inspección delegatura
+     * 
+     * Se confirma o se rechaza la solicitud de días adicionales por parte de la delegatura
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function confirmar_dias_adicionales_delegatura(Request $request){
         try {
@@ -2718,6 +3313,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Registrar hallazgos de la visita de inspección
+     * 
+     * Se registran los hallazgos encontrados por los inspectores
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function registrar_hallazgos(Request $request){
         try {
@@ -2869,6 +3484,25 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Se carga un solo documento al google drive
+     * 
+     * Función para cargar archivos a google drive
+     *
+     * @param file $enlace_plan_visita documeto a cargar.
+     * @param string $folderId id de la carpeta donde se cargara el documento.
+     * @param string $id_entidad id de la entidad.
+     * @param string $proceso proceso al que pertenece el documento.
+     * @param string $sub_proceso sub proceso del proceso.
+     * @param string $id_sub_proceso id del subproceso.
+     * @param string $tipo_anexo tipo de anexo.
+     * @param string $id_tipo_anexo id del tipo de anexo.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function cargar_documento_individual($enlace_plan_visita, $folderId, $id_entidad, $proceso, $sub_proceso, $id_sub_proceso, $tipo_anexo, $id_tipo_anexo) {
         $accessToken = auth()->user()->google_token;
         $uniqueCode = Str::random(8);
@@ -2937,6 +3571,26 @@ class DiagnosticoController extends Controller
         ];
                 
     }
+
+    /**
+     * Consolidar hallazgos
+     * 
+     * Se consolidan los hallazgos encontrados por los inspectores en un solo documento
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function consolidar_hallazgos(Request $request){
         try {
@@ -3056,6 +3710,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Proyecto de informe final
+     * 
+     * Se carga el documento de proyecto de informe final
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function proyecto_informe_final(Request $request){
         try {
         $proxima_etapa = '';
@@ -3173,6 +3847,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Revisión del proyecto de informe final
+     * 
+     * Se confirma si se debe modificar el proyecto de informe final
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function revision_proyecto_informe_final(Request $request){
 
@@ -3330,6 +4024,25 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Verificación de correcciones del informe final
+     * 
+     * Se envía el informe final para que tenga correcciones
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function verificaciones_correcciones_informe_final(Request $request){
         
         try {
@@ -3408,6 +4121,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Correcciones del informe final
+     * 
+     * Se carga el informe final con correcciones
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
     
     public function correcciones_informe_final(Request $request){
         try {
@@ -3423,10 +4156,8 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'revision_proyecto_informe_final_corregido' => 'required|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
-
                 'anexo_correcion_proyecto_informe_final.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'nombre_anexo_correcion_proyecto_informe_final.*' => 'nullable|string',
-
                 'observaciones' => 'nullable|string'
             ]);
 
@@ -3528,6 +4259,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Remitir el informe final a la coordinación
+     * 
+     * Se remite el informe final a la coordinación para su revisión
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
     
     public function remitir_proyecto_informe_final_coordinaciones(Request $request){
 
@@ -3647,6 +4398,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Revisión del informe final por la coordinación
+     * 
+     * La coordinación revisa el informe final y lo envía a la intendencia
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function revision_informe_final_coordinaciones(Request $request){
         try {
         $proxima_etapa = '';
@@ -3760,6 +4531,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Revisión del informe final por la intendencia
+     * 
+     * La intendencia revisa el informe final
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function revision_informe_final_intendente(Request $request){
 
@@ -3883,7 +4674,27 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
-    
+
+    /**
+     * Firma del informe final
+     * 
+     * El grupo de inspección firma el informe final, hasta que todos los usuarios firmen, no pasa a la siguiente etapa
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function firmar_informe_final(Request $request){
         try {
         $proxima_etapa = '';
@@ -4049,7 +4860,27 @@ class DiagnosticoController extends Controller
         }
     }
 
-    public function confirmacion_intervencion_inmediata(Request $request){ //TODO: proceso no claro
+    /**
+     * Confirmación de intervención inmediata
+     * 
+     * Si se confirma la medida de intervención inmediata, se crea el proceso de toma de posesión
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function confirmacion_intervencion_inmediata(Request $request){
         try {
             $proxima_etapa = '';
             $usuarios = [];
@@ -4255,11 +5086,30 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Enviar para traslado
+     * 
+     * Se envía el oficio para traslado
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
     
     public function enviar_traslado(Request $request) {
         try {
             $validatedData = $request->validate([
-                //'grupo_inspeccion' => 'required',
                 'id' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
@@ -4282,8 +5132,6 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
-                //$grupo_visita_inspeccion = json_decode($validatedData['grupo_inspeccion'], true);
-
                 if ($request->file('anexo_informe_visita_para_traslado')) {
 
                     $response_files = $this->cargarArchivosGoogle(
@@ -4304,30 +5152,6 @@ class DiagnosticoController extends Controller
                 }
 
                 $usuarios = [];
-
-                /*foreach ($grupo_visita_inspeccion as $persona) {
-
-                        $grupo_visita_inspeccion = new GrupoVisitaInspeccion();
-                        $grupo_visita_inspeccion->id_informe = $validatedData['id'];
-                        $grupo_visita_inspeccion->id_usuario = $persona['usuario'];
-                        $grupo_visita_inspeccion->rol = $persona['rol'];
-                        $grupo_visita_inspeccion->estado = 'ACTIVO';
-                        $grupo_visita_inspeccion->usuario_creacion = Auth::id();
-                        $grupo_visita_inspeccion->save();
-
-                        $asunto_email = 'Designación para proyectar y remitir oficio de traslado de la visita de inspección ' .$validatedData['numero_informe'];
-                        $datos_adicionales = ['numero_informe' => 'Designación para proyectar y remitir oficio de traslado de la visita de inspección '. $validatedData['numero_informe'],
-                                                    'mensaje' => 'Usted ha sido la persona seleccionada como designado para proyectar y remitir el oficio de traslado, para la visita de inspección identificada con el número ' . $validatedData['numero_informe']. ' a la entidad '
-                                                    . $validatedData['razon_social'] . ' identificada con el nit ' . $validatedData['nit'] . ', el memorando de traslado se encuentra en el ciclo de vida '. $validatedData['ciclo_informe_traslado'] . ' y el informe final en el siguiente enlace: ' 
-                                                    . $visita_inspeccion->informe_final ];
-
-                        $this->enviar_correos($persona['usuario'], $asunto_email, $datos_adicionales);
-
-                        $usuarios_lider_visita = User::where('id', $persona['usuario'])
-                                        ->first();
-                        $usuarios[] = ['id' => $usuarios_lider_visita->id, 'nombre' => $usuarios_lider_visita->name];
-
-                }*/
 
                 $grupo_inspeccion = GrupoVisitaInspeccion::where('estado', 'ACTIVO')
                     ->where('id_informe', $validatedData['id'])
@@ -4397,6 +5221,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Enviar informe para traslado a entidad
+     * 
+     * Se envía el informe para traslado a la entidad
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function informe_traslado_entidad(Request $request){
 
@@ -4499,6 +5343,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Registrar el pronunciamiento de la entidad 
+     * 
+     * se registra si la entidad se pronuncia
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function registrar_pronunciamiento_entidad(Request $request){
 
@@ -4631,6 +5495,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Registrar valoración de la respuesta
+     * 
+     * Si la entidad se pronuncia, se registra la valoración de la respuesta de la entidad
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function registrar_valoracion_respuesta(Request $request){
         try {
         $proxima_etapa = '';
@@ -4748,6 +5632,26 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Registrar hallazgos finales
+     * 
+     * Se registran los hallazgos finales del informe
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function registrar_informe_hallazgos_finales(Request $request){
         try {
 
@@ -4843,6 +5747,26 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Proponer actuación administrativa
+     * 
+     * Se registran la proposición de la actuación administrativa
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function proponer_actuacion_administrativa(Request $request){
         try {
@@ -4960,6 +5884,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Modificar grupo de inspección
+     * 
+     * Se elimina, ingresa inspectores para la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function modificar_grupo_inspeccion(Request $request) {
         try {
@@ -5190,6 +6133,26 @@ class DiagnosticoController extends Controller
         }
     }    
 
+    /**
+     * Contenidos finales expedientes
+     * 
+     * Se guardan todos los ciclos de vida y los documentos finales en un solo expediente
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Carga los documentos al drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function contenidos_finales_expedientes(Request $request){
         try {
             $proxima_etapa = '';
@@ -5290,6 +6253,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Generar tablero de control
+     * 
+     * Se genera el tablero en formato .xls de control diligenciado
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function generar_tablero(Request $request)
     {
@@ -5428,6 +6410,25 @@ class DiagnosticoController extends Controller
 
         return response()->download($outputPath, 'tablero.xlsx', [], 'inline');
     }
+
+    /**
+     * Generar tablero de control
+     * 
+     * Se genera el tablero en formato .xls de control diligenciado con todas las entidades filtradas
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function generar_tablero_masivo(Request $request)
     {
@@ -5604,7 +6605,7 @@ class DiagnosticoController extends Controller
         return response()->download($outputPath, 'tablero.xlsx', [], 'inline');
     }
 
-    public function redirectToGoogle()
+    /*public function redirectToGoogle()
     {
         $client = new Client();
         $client->setAuthConfig(storage_path('app/credentials/credenciales.json'));
@@ -5630,7 +6631,26 @@ class DiagnosticoController extends Controller
         $request->session()->put('google_token', $token);
 
         return redirect('/'); 
-    }
+    }*/
+
+    /**
+     * Suspender visita de inspección
+     * 
+     * Se suspende la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function suspender_visita(Request $request){
 
@@ -5706,6 +6726,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Reanudar visita de inspección
+     * 
+     * Se reanuda la visita de inspección en el estado que se encontraba
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function reanudar_visita(Request $request){
 
@@ -5788,6 +6827,25 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Cambiar de entidad
+     * 
+     * Se cambia la entidad a la cual se esta haciendo la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function cambiar_entidad(Request $request) {
         try {
             $validatedData = $request->validate([
@@ -5860,6 +6918,24 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     } 
+
+    /**
+     * Eliminar archivo
+     * 
+     * Se elimina el archivo de google drive
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function eliminar_archivo(Request $request) {
         try {
@@ -5951,6 +7027,24 @@ class DiagnosticoController extends Controller
         }
     } 
 
+    /**
+     * Eliminar archivo
+     * 
+     * Se elimina el archivo de google drive y se actualiza la tabla con uno nuevo
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function eliminar_archivo_update(Request $request) {
         try {
             $validatedData = $request->validate([
@@ -6023,6 +7117,25 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     } 
+
+    /**
+     * Guardar plan de visita modificado
+     * 
+     * Se guarda una nueva versión del plan de visita
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Carga los archivos al google drive
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function guardar_plan_visita_modificado(Request $request) {
         try {
@@ -6272,7 +7385,7 @@ class DiagnosticoController extends Controller
         }
     }
 
-    public function pdfDownload(Request $request) {
+    /*public function pdfDownload(Request $request) {
         try {
 
             $validatedData = $request->validate([
@@ -6327,7 +7440,26 @@ class DiagnosticoController extends Controller
             $errorMessage = $e->getMessage();
             return response()->json(['error' => $errorMessage], 500);
         }
-    }
+    }*/
+
+    /**
+     * Citación a comité interno
+     * 
+     * Seregistra la fecha y hora de la citación al comité interno
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Carga los archivos al google drive
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function citacion_comite_interno_evaluador(Request $request){
         try {
@@ -6435,6 +7567,23 @@ class DiagnosticoController extends Controller
         }
     }
 
+    /**
+     * Guardar documento adicional a la visita de inspección
+     * 
+     * Se registran los documentos adicionales a la visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Carga los archivos al google drive
+     *  - Actualiza el historial de la visita de inspección
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function guardar_documento_adicional_visita_inspeccion(Request $request){
         try {
 
@@ -6502,7 +7651,17 @@ class DiagnosticoController extends Controller
         }
     }
 
-    public function consultar_dias_no_laborales(Request $request){
+    /**
+     * Consulta de días no laborales
+     * 
+     * Se consultan los días que no son laborales
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function consultar_dias_no_laborales(){
         try {
 
             $diasFestivos = DiaNoLaboral::pluck('dia')->toArray();
@@ -6516,6 +7675,135 @@ class DiagnosticoController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Crear registro google sheets
+     * 
+     * Crea el registro de la visita en la hoja de google sheets
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function create_sheets($a, $b, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, $aa, $ab, $ad, $af, $ah, $ak, $am, $an, $aq, $bc, $bd, $bf, $bg, $bi ) {
+        $accessToken = auth()->user()->google_token;
+        $spreadsheetId = '1WHWLZmTZJ2nwqZCCkoNCRKZe2l7V-UNIEIYHx_WAEP4';
+
+        $range = 'CONSOLIDADO';
+
+        $values = [
+            [$a, $b, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, 
+                $aa, $ab, NULL, $ad, NULL, $af, NULL, $ah, NULL, NULL, $ak, NULL, $am, $an, NULL, NULL, $aq, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                NULL, NULL, $bc, $bd, NULL, $bf, $bg, NULL, $bi
+            ],
+        ];
+    
+        $body = [
+            'values' => $values
+        ];
+    
+        $response = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=RAW", $body);
+
+        if ($response->successful()) {
+            return [
+                        'status' => 'success',
+                        'message' => 'Datos enviados a la hoja de cálculo exitosamente.'
+            ];
+        } else {
+            if (strpos($response->body(), 'Invalid Credentials') !== false) {
+                auth()->logout();
+                        return [
+                            'status' => 'error',
+                            'message' => 'Sesión cerrada. Por favor, vuelva a iniciar sesión.'
+                        ];
+            }
+            return [
+                'status' => 'error',
+                'message' => $response->json()['error']['message']
+            ];
+        }
+    }
+
+    /**
+     * Actualiza registro google sheets
+     * 
+     * Actualiza el registro de la visita en la hoja de google sheets basado en el id
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function update_sheets($id, $a, $b, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, $aa, $ab, $ad, $af, $ah, $ak, $am, $an, $aq, $bc, $bd, $bf, $bg, $bi) {
+        $accessToken = auth()->user()->google_token;
+        $spreadsheetId = '1WHWLZmTZJ2nwqZCCkoNCRKZe2l7V-UNIEIYHx_WAEP4';
+    
+        $range = 'CONSOLIDADO!A:A';
+    
+        $response = Http::withToken($accessToken)
+            ->get("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}");
+    
+        if (!$response->successful()) {
+            return [
+                'status' => 'error',
+                'message' => 'No se pudo obtener los datos de la hoja de cálculo.'
+            ];
+        }
+    
+        $values = $response->json()['values'];
+    
+        $rowNumber = null;
+        foreach ($values as $index => $value) {
+            if (isset($value[0]) && $value[0] == $id) {
+                $rowNumber = $index + 1;
+                break;
+            }
+        }
+    
+        if (!$rowNumber) {
+            return [
+                'status' => 'error',
+                'message' => 'No se encontró el ID en la hoja de cálculo.'
+            ];
+        }
+    
+        $updateRange = 'CONSOLIDADO!A'.$rowNumber.':BI'.$rowNumber;
+    
+        $updateValues = [
+            [$a, $b, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, 
+                $aa, $ab, NULL, $ad, NULL, $af, NULL, $ah, NULL, NULL, $ak, NULL, $am, $an, NULL, NULL, $aq, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                NULL, NULL, $bc, $bd, NULL, $bf, $bg, NULL, $bi
+            ],
+        ];
+    
+        $body = [
+            'values' => $updateValues
+        ];
+    
+        $updateResponse = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->put("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$updateRange}?valueInputOption=RAW", $body);
+    
+        if ($updateResponse->successful()) {
+            return [
+                'status' => 'success',
+                'message' => 'Datos actualizados exitosamente en la hoja de cálculo.'
+            ];
+        } else {
+            return [
+                'status' => 'error',
+                'message' => $updateResponse->json()['error']['message']
+            ];
+        }
+    }
+    
 
 }
 

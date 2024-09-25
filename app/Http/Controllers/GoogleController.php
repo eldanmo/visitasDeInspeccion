@@ -9,6 +9,13 @@ use App\Models\User;
 
 class GoogleController extends Controller
 {
+
+    /**
+     * Redirecciona a la pantalla de permisos de google.
+     *
+     * @return \Illuminate\View\View Devuelve la vista de google.
+    */
+
     public function redirectToGoogle()
     {
         return Socialite::driver('google')
@@ -19,6 +26,14 @@ class GoogleController extends Controller
             ->with(['access_type' => 'offline', 'prompt' => 'consent'])
             ->redirect();
     }
+
+    /**
+     * Verifica que el dominio sea @supersolidaria.
+     * Guarda los datos de sesion
+     * Redirecciona al dashboard
+     *
+     * @return \Illuminate\View\View Devuelve la vista de google.
+    */
 
     public function handleGoogleCallback()
     {

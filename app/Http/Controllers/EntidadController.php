@@ -12,21 +12,48 @@ use Illuminate\Support\Facades\Http;
 
 class EntidadController extends Controller
 {
+
+    /**
+     * Muestra el formulario para crear entidades.
+     *
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'crear_entidad' con los filtros solicitados.
+    */
+
     public function crear()
     {
         return view('crear_entidad');
     }
+
+    /**
+     * Muestra el formulario para consultar entidades.
+     *
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_entidad' con los filtros solicitados.
+    */
 
     public function consultar()
     {
         return view('consultar_entidad');
     }
 
+    /**
+     * Crear entidad
+     * 
+     * Se registra una entidad para realizar el díagnóstico
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function guardar(Request $request)
     {
         try {
 
-            /*$validatedData = $request->validate([
+            $validatedData = $request->validate([
                 'codigo_entidad' => [
                     'required',
                     'numeric',
@@ -108,11 +135,9 @@ class EntidadController extends Controller
             $entidad->correo_revisor_fiscal = $validatedData['correo_revisor_fiscal'];
             $entidad->usuario_creacion = $usuarioCreacionId;
             $entidad->estado = 'ACTIVA';
-            $entidad->save();*/
+            $entidad->save();
 
-            $successMessage = $this->llenar_sheets();
-
-            //$successMessage = 'Entidad creada correctamente';
+            $successMessage = 'Entidad creada correctamente';
 
             return response()->json(['message' => $successMessage]);
         } catch (\Exception $e) {
@@ -120,6 +145,13 @@ class EntidadController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * Muestra el formulario para consultar entidades con filtros.
+     *
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_entidad' con los filtros solicitados.
+    */
 
     public function consultarEntidades(Request $request)
     {
@@ -147,6 +179,18 @@ class EntidadController extends Controller
 
         return view('consultar_entidad', compact('entidades'));
     }
+
+    /**
+     * Eliminar entidad
+     * 
+     * Se elimina una entidad para realizar el díagnóstico
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function eliminar_entidad(Request $request)
     {
@@ -176,18 +220,50 @@ class EntidadController extends Controller
         
     }
 
+    /**
+     * Muestra el formulario para editar una entidad.
+     *
+     * @param int $id id de la entidad a actualizar
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'crear_entidad' con los datos a editar.
+    */
+
     public function editar($id)
     {
         $entidad = Entidad::findOrFail($id);
         return view('crear_entidad')->with('entidad', $entidad);
     }
 
+    /**
+     * Editar entidad
+     * 
+     * Se editan los datos de una entidad para realizar el díagnóstico
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function actualizar(Request $request, $id)
     {
         try {
             $validatedData = $request->validate([
-                'codigo_entidad' => 'required|numeric|unique:entidades,codigo_entidad,'.$id,
-                'nit' => 'required|numeric|unique:entidades,nit,'.$id,
+                'codigo_entidad' => [
+                    'required',
+                    'numeric',
+                    Rule::unique('entidades', 'codigo_entidad')->ignore($id)->where(function ($query) {
+                        return $query->where('estado', '!=', 'ELIMINADA');
+                    })
+                ],
+                'nit' => [
+                    'required',
+                    'numeric',
+                    Rule::unique('entidades', 'nit')->ignore($id)->where(function ($query) {
+                        return $query->where('estado', '!=', 'ELIMINADA');
+                    })
+                ],
                 'razon_social' => 'required|string',
                 'sigla' => 'nullable|string',
                 'nivel_supervision' => 'required|numeric',
@@ -266,6 +342,18 @@ class EntidadController extends Controller
         }
     }
 
+    /**
+     * consultar entidades diagnóstico
+     * 
+     * Devuelve los datos de las entidades con los filtros aplicados
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function consultarEntidadesDiagnostico(Request $request)
     {
         $entidades = Entidad::query();
@@ -295,10 +383,32 @@ class EntidadController extends Controller
         return response()->json(['message' => $entidades]);
     }
 
+    /**
+     * Descargar plantilla de cargue masivo
+     * 
+     * Se descarga un excel con los datos de las entidades a crear
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function descargar_plantilla_cargue_masivo() {
         $filePath = public_path('templates/plantilla_cargue_entidades_masivo.xlsx');
         return response()->download($filePath);
     }
+
+    /**
+     * crear entidades masivo
+     * 
+     * Se carga un excel con los datos de las entidades a crear
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function importar_entidades(Request $request)
     {
@@ -416,47 +526,6 @@ class EntidadController extends Controller
             return response()->json(['message' => 'Entidades importadas correctamente']);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    public function llenar_sheets() {
-        $accessToken = auth()->user()->google_token;
-        $spreadsheetId = '1fWasA1SxbPnhjj5qm5A5dw5tFzkSIn7-5TXvUPbnC-M';
-
-        $range = 'Hoja1!A1';
-
-        $values = [
-            ['Dato 1', 'Dato 2', 'Dato 3'],
-            ['Dato 4', 'Dato 5', 'Dato 6']
-        ];
-    
-        $body = [
-            'values' => $values
-        ];
-    
-        $response = Http::withToken($accessToken)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-            ])
-            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=RAW", $body);
-
-        if ($response->successful()) {
-            return [
-                        'status' => 'success',
-                        'message' => 'Datos enviados a la hoja de cálculo exitosamente.'
-            ];
-        } else {
-            if (strpos($response->body(), 'Invalid Credentials') !== false) {
-                auth()->logout();
-                        return [
-                            'status' => 'error',
-                            'message' => 'Sesión cerrada. Por favor, vuelva a iniciar sesión.'
-                        ];
-            }
-            return [
-                'status' => 'error',
-                'message' => $response->json()['error']['message']
-            ];
         }
     }
 }

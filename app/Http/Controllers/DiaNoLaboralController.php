@@ -8,6 +8,18 @@ use Illuminate\Http\Request;
 class DiaNoLaboralController extends Controller
 {
 
+    /**
+     * Crear día no laboral
+     * 
+     * Se registra los días no laborales
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function crear_dia_no_laboral(Request $request) {
 
         try {
@@ -31,6 +43,13 @@ class DiaNoLaboralController extends Controller
         }
 
     }
+
+    /**
+     * Muestra el formulario para crear un días habiles.
+     *
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'dias_habiles' con los filtros solicitados.
+    */
 
     public function dias_habiles(Request $request) {
 
@@ -59,6 +78,18 @@ class DiaNoLaboralController extends Controller
         ]);
     }
 
+    /**
+     * Actualizar día no laboral
+     * 
+     * Se actualiza los días no laborales
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
     public function actualizar(Request $request, $id)
     {
         try {
@@ -81,6 +112,18 @@ class DiaNoLaboralController extends Controller
             return response()->json(['error' => $errorMessage], 500);
         }
     }
+
+    /**
+     * eliminar día no laboral
+     * 
+     * Se elimina los días no laborales
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function eliminar($id)
     {

@@ -8,10 +8,28 @@ use App\Models\Parametro;
 
 class ParametrosController extends Controller
 {
+    /**
+     * Muestra el formulario para consultar los parámetros.
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_parametros'.
+    */
+
     public function consultar()
     {
         return view('consultar_parametros', ['parametros' => Parametro::paginate(10)]);
     }
+
+    /**
+     * actualiza el parámetro
+     * 
+     * Se actualiza los días para un parámetro
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function actualizar(Request $request, $id)
     {

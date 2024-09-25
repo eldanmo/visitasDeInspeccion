@@ -8,15 +8,39 @@ use Illuminate\Support\Facades\Hash;
 
 class UsuarioController extends Controller
 {
+    /**
+     * Muestra el formulario para crear un usuario (inhabilitado).
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'crear_usuario'.
+    */
+
     public function crear()
     {
         return view('crear_usuario');
     }
 
+    /**
+     * Muestra el formulario para consultar usuarios.
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_usuario'.
+    */
+
     public function consultar()
     {
         return view('consultar_usuario');
     }
+
+    /**
+     * Guardar usuario (inhabilitado)
+     * 
+     * Se crea un usuario nuevo
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
 
     public function guardar(Request $request)
     {
@@ -44,6 +68,17 @@ class UsuarioController extends Controller
         }
     }
 
+    /**
+     * consultar usuarios
+     * 
+     * Retorna los datos de los usuarios a consultar
+     * 
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'consultar_usuario' con los filtros aplicados.
+     * 
+    */
+
     public function consultarUsuarios(Request $request) {
 
         $usuarios = User::query();
@@ -69,6 +104,19 @@ class UsuarioController extends Controller
         return view('consultar_usuario', compact('usuarios'));
     }
 
+    /**
+     * Eliminar usuarios
+     * 
+     * Elimina un usuario de la base de datos
+     * 
+     * @param int $id id del usuario a eliminar
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+     * 
+    */
+
     public function eliminar($id)
     {
 
@@ -82,6 +130,19 @@ class UsuarioController extends Controller
 
         return response()->json(['mensaje' => 'Usuario eliminado correctamentes'], 200);
     }
+
+    /**
+     * Actualizar usuario
+     * 
+     * Actualiza un usuario de la base de datos
+     * 
+     * @param int $id id del usuario a eliminar
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+     * 
+    */
 
     public function actualizar(Request $request, $id)
     {

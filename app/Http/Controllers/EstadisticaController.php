@@ -10,6 +10,11 @@ use App\Models\VisitaInspeccion;
 
 class EstadisticaController extends Controller
 {
+    /**
+     * Muestra el formulario para consultar estadísticas.
+     *
+     * @return \Illuminate\View\View Devuelve la vista 'estadisticas' que no sean visitas canceladas.
+    */
 
     public function estadisticas(){
         $cantidadDeVisitas = VisitaInspeccion::whereNotIn('estado_informe', ['CANCELADO'])
@@ -19,6 +24,12 @@ class EstadisticaController extends Controller
             'cantidad_visitas_actuales' => $cantidadDeVisitas,
         ]);
     }
+
+    /**
+     * Retorna los datos para las estadisticas.
+     *
+     * @return \Illuminate\View\View Devuelve los datos de las estadisticas de las visitas que no sean canceladas.
+    */
 
     public function estadisticas_datos() {
 

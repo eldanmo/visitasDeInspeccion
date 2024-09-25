@@ -9,7 +9,7 @@
                         <div class="col col-sm-5 col-md-5 col-lg-3 border border-warning text-center mr-3 mt-3" style="background-color: orange;" >
                             <div class="row text-center p-3 justify-content-center">
                                 <div class="col col-sm-12">
-                                    <h5 style="color: white;">Base maestra de entidades</h5>
+                                    <h5 style="color: white;">Base maestra de entidadess</h5>
                                 </div>
                                 <a href="{{ url('/consultar_maestro_entidades') }}" class="col-10 col-sm-10 col-md-10 col-lg-3 border border-warning pt-3 m-3 text-center flex flex-col items-center bg-white" style="padding: 0 45px; text-decoration: none; color: inherit;">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
