@@ -27,42 +27,35 @@
                     </x-nav-link>
 
                     <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                    @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente')
-                        <x-dropdown-link :href="route('crear_diagnostico')" :active="request()->routeIs('crear_diagnostico')">
-                            {{ __('Crear diagnóstico') }}
-                        </x-dropdown-link>
-                    @endif
+                        @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente' || Auth::user()->profile === 'Coordinador')
+                            <x-dropdown-link :href="route('crear_entidad')" :active="request()->routeIs('crear_entidad')">
+                                {{ __('Crear entidades') }}
+                            </x-dropdown-link>
+                            <x-dropdown-link :href="route('consultar_entidad')" :active="request()->routeIs('consultar_entidad')">
+                                {{ __('Consultar entidades') }}
+                            </x-dropdown-link>
+                        @endif
+                        @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente')
+                            <x-dropdown-link :href="route('crear_diagnostico')" :active="request()->routeIs('crear_diagnostico')">
+                                {{ __('Crear diagnóstico') }}
+                            </x-dropdown-link>
+                        @endif
                         <x-dropdown-link :href="route('consultar_informe')" :active="request()->routeIs('consultar_informe')">
                             {{ __('Consultar') }}
                         </x-dropdown-link>
-                    </div>
-                </div>
-
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex dropdown">
-                    <x-nav-link  :active="request()->routeIs('crear_entidad') || request()->routeIs('consultar_entidad')" class="text-white dropdown-toggle" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        {{ __('Entidades') }}
-                    </x-nav-link>
-
-                    <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                        <x-dropdown-link :href="route('crear_entidad')" :active="request()->routeIs('crear_entidad')">
-                            {{ __('Crear') }}
-                        </x-dropdown-link>
-                        <x-dropdown-link :href="route('consultar_entidad')" :active="request()->routeIs('consultar_entidad')">
-                            {{ __('Consultar') }}
+                        <x-dropdown-link :href="route('estadisticas')" :active="request()->routeIs('estadisticas')">
+                            {{ __('Estadísticas') }}
                         </x-dropdown-link>
                     </div>
                 </div>
 
-                @if(Auth::user()->profile !== 'Contratista' )
+                @if(Auth::user()->profile === 'Administrador' )
                     <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex dropdown">
                         <x-nav-link  :active="request()->routeIs('crear_usuario') || request()->routeIs('consultar_usuario')" class="text-white dropdown-toggle" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                             {{ __('Usuarios') }}
                         </x-nav-link>
 
                         <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                            <x-dropdown-link :href="route('crear_usuario')" :active="request()->routeIs('crear_usuario')">
-                                {{ __('Crear') }}
-                            </x-dropdown-link>
                             <x-dropdown-link :href="route('consultar_usuario')" :active="request()->routeIs('consultar_usuario')">
                                 {{ __('Consultar') }}
                             </x-dropdown-link>
@@ -79,9 +72,7 @@
                         <x-dropdown-link :href="route('consultar_parametros')" :active="request()->routeIs('consultar_parametros')">
                             {{ __('Consultar') }}
                         </x-dropdown-link>
-                        <x-dropdown-link :href="route('estadisticas')" :active="request()->routeIs('estadisticas')">
-                            {{ __('Estadísticas') }}
-                        </x-dropdown-link>
+                        
                         <x-dropdown-link :href="route('dias_habiles')" :active="request()->routeIs('dias_habiles')">
                             {{ __('Días no laborales') }}
                         </x-dropdown-link>
@@ -148,76 +139,65 @@
 
         @if(Auth::user()->profile !== NULL)
 
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link  :active="request()->routeIs('crear_diagnostico') || request()->routeIs('consultar_informe')" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-            :class="(request()->routeIs('crear_diagnostico') || request()->routeIs('consultar_informe')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
-                        {{ __('Visitas de inspección') }}
-            </x-responsive-nav-link>
+            @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente' || Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Contratista')
+                <div class="pt-2 pb-3 space-y-1">
+                    <x-responsive-nav-link  :active="request()->routeIs('crear_diagnostico') || request()->routeIs('consultar_informe')" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                    :class="(request()->routeIs('crear_diagnostico') || request()->routeIs('consultar_informe')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
+                                {{ __('Visitas de inspección') }}
+                    </x-responsive-nav-link>
 
-            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente')
-                    <x-dropdown-link :href="route('crear_diagnostico')" :active="request()->routeIs('crear_diagnostico')">
-                        {{ __('Crear diagnóstico') }}
-                    </x-dropdown-link>
-                @endif
-                <x-dropdown-link :href="route('consultar_informe')" :active="request()->routeIs('consultar_informe')">
-                    {{ __('Consultar') }}
-                </x-dropdown-link>
-            </div>
-        </div>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <x-dropdown-link :href="route('crear_entidad')" :active="request()->routeIs('crear_entidad')">
+                            {{ __('Crear entidades') }}
+                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('consultar_entidad')" :active="request()->routeIs('consultar_entidad')">
+                            {{ __('Consultar entidades') }}
+                        </x-dropdown-link>
+                        @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente')
+                            <x-dropdown-link :href="route('crear_diagnostico')" :active="request()->routeIs('crear_diagnostico')">
+                                {{ __('Crear diagnóstico') }}
+                            </x-dropdown-link>
+                        @endif
+                        <x-dropdown-link :href="route('consultar_informe')" :active="request()->routeIs('consultar_informe')">
+                            {{ __('Consultar') }}
+                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('estadisticas')" :active="request()->routeIs('estadisticas')">
+                            {{ __('Estadísticas') }}
+                        </x-dropdown-link>
+                    </div>
+                </div>
+            @endif
 
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link  :active="request()->routeIs('crear_entidad') || request()->routeIs('consultar_entidad')" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-            :class="(request()->routeIs('crear_entidad') || request()->routeIs('consultar_entidad')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
-                {{ __('Entidades') }}
-            </x-responsive-nav-link>
+            @if(Auth::user()->profile === 'Administrador' )
+                <div class="pt-2 pb-3 space-y-1">
+                    <x-responsive-nav-link  :active="request()->routeIs('crear_usuario') || request()->routeIs('consultar_usuario')" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                    :class="(request()->routeIs('crear_usuario') || request()->routeIs('consultar_usuario')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
+                        {{ __('Usuarios') }}
+                    </x-responsive-nav-link>
 
-            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                <x-dropdown-link :href="route('crear_entidad')" :active="request()->routeIs('crear_entidad')">
-                    {{ __('Crear') }}
-                </x-dropdown-link>
-                <x-dropdown-link :href="route('consultar_entidad')" :active="request()->routeIs('consultar_entidad')">
-                    {{ __('Consultar') }}
-                </x-dropdown-link>
-            </div>
-        </div>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <x-dropdown-link :href="route('consultar_usuario')" :active="request()->routeIs('consultar_usuario')">
+                            {{ __('Consultar') }}
+                        </x-dropdown-link>
+                    </div>
+                </div>
+            @endif
 
-        @if(Auth::user()->profile !== 'Contratista' )
             <div class="pt-2 pb-3 space-y-1">
-                <x-responsive-nav-link  :active="request()->routeIs('crear_usuario') || request()->routeIs('consultar_usuario')" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                :class="(request()->routeIs('crear_usuario') || request()->routeIs('consultar_usuario')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
-                    {{ __('Usuarios') }}
+                <x-responsive-nav-link  :active="request()->routeIs('consultar_parametros') || request()->routeIs('estadisticas') || request()->routeIs('dias_habiles')" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                :class="(request()->routeIs('consultar_parametros') || request()->routeIs('estadisticas') || request()->routeIs('dias_habiles')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
+                    {{ __('Parámetros') }}
                 </x-responsive-nav-link>
 
                 <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                    <x-dropdown-link :href="route('crear_usuario')" :active="request()->routeIs('crear_usuario')">
-                        {{ __('Crear') }}
-                    </x-dropdown-link>
-                    <x-dropdown-link :href="route('consultar_usuario')" :active="request()->routeIs('consultar_usuario')">
+                    <x-dropdown-link :href="route('consultar_parametros')" :active="request()->routeIs('consultar_parametros')">
                         {{ __('Consultar') }}
+                    </x-dropdown-link>
+                    <x-dropdown-link :href="route('dias_habiles')" :active="request()->routeIs('dias_habiles')">
+                        {{ __('Días no laborales') }}
                     </x-dropdown-link>
                 </div>
             </div>
-        @endif
-
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link  :active="request()->routeIs('consultar_parametros') || request()->routeIs('estadisticas') || request()->routeIs('dias_habiles')" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-            :class="(request()->routeIs('consultar_parametros') || request()->routeIs('estadisticas') || request()->routeIs('dias_habiles')) ? 'text-success dropdown-toggle' : 'text-white dropdown-toggle'">
-                {{ __('Parámetros') }}
-            </x-responsive-nav-link>
-
-            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                <x-dropdown-link :href="route('consultar_parametros')" :active="request()->routeIs('consultar_parametros')">
-                    {{ __('Consultar') }}
-                </x-dropdown-link>
-                <x-dropdown-link :href="route('estadisticas')" :active="request()->routeIs('estadisticas')">
-                    {{ __('Estadísticas') }}
-                </x-dropdown-link>
-                <x-dropdown-link :href="route('dias_habiles')" :active="request()->routeIs('dias_habiles')">
-                    {{ __('Días no laborales') }}
-                </x-dropdown-link>
-            </div>
-        </div>
 
         @endif
 

@@ -20,15 +20,7 @@
                     @endif
                 </div>
                 <div class="col-6 col-sm-4 col-md-3 text-center">
-                    <p><b>Estado del Informe</b></p>
-                    @if($informe->estado_informe === 'VIGENTE' || $informe->estado_etapa === 'FINALIZADO')
-                        <p class="text-success">{{$informe->estado_informe}}</p>
-                    @else
-                        <p class="text-danger">{{$informe->estado_informe}}</p>
-                    @endif
-                </div>
-                <div class="col-6 col-sm-4 col-md-3 text-center">
-                    <p><b>Usuarios actuales</b></p>
+                    <p><b>Responsable(s) de la etapa actual</b></p>
                     <p>@php
                         $usuarios = json_decode($informe->usuario_actual);
                         $totalUsuarios = count($usuarios);
@@ -37,6 +29,14 @@
                             {{ $usuario->nombre }}
                             @if($key < $totalUsuarios - 1) , @endif
                         @endforeach</p>
+                </div>
+                <div class="col-6 col-sm-4 col-md-3 text-center">
+                    <p><b>Estado de la visita</b></p>
+                    @if($informe->estado_informe === 'VIGENTE' || $informe->estado_etapa === 'FINALIZADO')
+                        <p class="text-success">{{$informe->estado_informe}}</p>
+                    @else
+                        <p class="text-danger">{{$informe->estado_informe}}</p>
+                    @endif
                 </div>
             </div>
         </div>
@@ -2247,7 +2247,7 @@
                                             <p class="text-danger">{{$historial->estado}}</p>
                                         @endif
                                     </td>
-                                    <td>{{ $historial->fecha_creacion }}</td>
+                                    <td>{{ $historial->created_at }}</td>
                                     <td>{{ $historial->observaciones }}</td>
                                     <td>
                                         @if($historial->estado_etapa === 'VIGENTE')

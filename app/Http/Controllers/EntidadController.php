@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Auth;
 
 use Illuminate\Http\Request;
 use App\Models\Entidad;  
+use App\Models\VisitaInspeccion;  
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -98,6 +99,14 @@ class EntidadController extends Controller
                 'telefono_revisor_fiscal' => 'required|string',
                 'correo_revisor_fiscal' => 'required|email',
             ]);
+
+            $visitaExistente = VisitaInspeccion::where('id_entidad', $validatedData['codigo_entidad'])
+                ->whereNotIn('etapa', ['FINALIZADO', 'CANCELADO'])
+                ->exists();
+
+            if ($visitaExistente) {
+                return response()->json(['error' => 'La entidad ya está asociada a una visita de inspección que no ha finalizado o sido cancelada.'], 400);
+            }
 
             $usuarioCreacionId = Auth::id();
 
@@ -345,7 +354,7 @@ class EntidadController extends Controller
     /**
      * consultar entidades diagnóstico
      * 
-     * Devuelve los datos de las entidades con los filtros aplicados
+     * Devuelve los datos de las entidades con los filtros aplicados para realizar el diagnóstico
      *
      * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
      * 
@@ -372,11 +381,11 @@ class EntidadController extends Controller
             $entidades->where('razon_social', 'like', '%' . $request->nombre . '%');
         }
 
-        $entidades->whereNotIn('id', function ($query) {
+       /* $entidades->whereNotIn('id', function ($query) {
             $query->select('id_entidad')
                 ->from('visitas_inspeccion')
                 ->whereNotIn('etapa', ['FINALIZADO', 'CANCELADO']);
-        });
+        });*/
 
         $entidades = $entidades->get();
 
@@ -417,16 +426,16 @@ class EntidadController extends Controller
         ]);
 
         try {
-
             $file = $request->file('archivo_entidades');
             $spreadsheet = IOFactory::load($file->getPathname());
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray(null, true, true, true);
 
             $usuarioCreacionId = Auth::id();
+            $errors = [];
 
             foreach ($rows as $index => $row) {
-
+                // Saltar la fila de encabezado
                 if ($row['A'] == 'Código') {
                     continue;
                 }
@@ -466,6 +475,17 @@ class EntidadController extends Controller
                     'estado' => 'ACTIVA',
                 ];
 
+                // Verificar si ya existe una visita activa para la entidad
+                $visitaExistente = VisitaInspeccion::where('id_entidad', $data['codigo_entidad'])
+                    ->whereNotIn('etapa', ['FINALIZADO', 'CANCELADO'])
+                    ->exists();
+
+                if ($visitaExistente) {
+                    $errors[$row['A']][] = 'La entidad ya tiene una visita de inspección activa.';
+                    continue; // Saltar esta entidad y continuar con las demás
+                }
+
+                // Validar los datos de la entidad
                 $validator = Validator::make($data, [
                     'codigo_entidad' => [
                         'required',
@@ -504,7 +524,7 @@ class EntidadController extends Controller
                     'correo_representate_legal' => 'required|email',
                     'telefono_representate_legal' => 'nullable|string',
                     'tipo_revisor_fiscal' => 'required|string',
-                    'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA NATURAL',
+                    'razon_social_revision_fiscal' => 'nullable|string|required_if:tipo_revisor_fiscal,PERSONA JURÍDICA',
                     'nombre_revisor_fiscal' => 'required|string',
                     'direccion_revisor_fiscal' => 'required|string',
                     'telefono_revisor_fiscal' => 'required|string',
@@ -516,7 +536,8 @@ class EntidadController extends Controller
                     continue;
                 }
 
-                Entidad::create(array_merge($data, ['usuario_creacion' => $usuarioCreacionId]));
+                // Crear la entidad
+                Entidad::create($data);
             }
 
             if (!empty($errors)) {
@@ -524,8 +545,17 @@ class EntidadController extends Controller
             }
 
             return response()->json(['message' => 'Entidades importadas correctamente']);
+
+            // Devolver las entidades con visitas activas junto con el resultado
+            /*return response()->json([
+                'message' => 'Entidades importadas correctamente',
+                'entidades_con_visitas_activas' => $entidadesConVisitasActivas,
+                'errors' => $errors
+            ]);*/
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+
 }

@@ -4,8 +4,17 @@
         <form action="{{ route('consultar_informe') }}" method="GET">
                     <div class="row mb-3">
                         <div class="col-12 col-sm-4">
-                            <label class="form-label">Número de informe</label>
+                            <label class="form-label">Número de visita de inspección</label>
                             <input type="text" name="numero_informe" id="numero_informe" class="form-control" value="{{ request('numero_informe') }}">
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <label class="form-label">Etapa actual</label>
+                                <select class="form-select" id="etapa_actual" name="etapa_actual">
+                                    <option value="" selected>Seleccione</option>
+                                    @foreach ($parametros as $index => $parametro)
+                                        <option value="{{$parametro->estado}}" {{ request('etapa_actual') == $parametro->estado ? 'selected' : '' }}>{{$parametro->estado}}</option>
+                                    @endforeach                         
+                                </select>
                         </div>
                         <div class="col-12 col-sm-4">
                             <label class="form-label">Estado de la etapa</label>
@@ -17,7 +26,7 @@
                                 </select>
                         </div>
                         <div class="col-12 col-sm-4">
-                            <label class="form-label">Usuario actual</label>
+                            <label class="form-label">Responsable(s) de la etapa actual</label>
                             <select class="form-select" id="usuario_actual" name="usuario_actual" value="{{ request('usuario_actual') }}">
                             <option value="">Seleccione</option>
                                 @if(isset($usuarios))
@@ -28,11 +37,11 @@
                             </select>
                         </div>
                         <div class="col-12 col-sm-4">
-                            <label class="form-label">Nit entidad</label>
+                            <label class="form-label">Nit de la entidad</label>
                             <input type="text" class="form-control" aria-describedby="basic-addon2" id="nit_entidad" name="nit_entidad" value="{{ request('nit_entidad') }}">
                         </div>
                         <div class="col-12 col-sm-4">
-                            <label class="form-label">Nombre entidad</label>
+                            <label class="form-label">Nombre de la entidad</label>
                             <input type="text" class="form-control" aria-describedby="basic-addon2" id="nombre_entidad" name="nombre_entidad" value="{{ request('nombre_entidad') }}">
                         </div>
                         <div class="col-12 col-sm-4">
@@ -45,15 +54,7 @@
                                     <option value="CANCELADO" {{ request('estado_informe') == 'CANCELADO' ? 'selected' : '' }}>CANCELADO</option>
                                 </select>
                         </div>
-                        <div class="col-12 col-sm-4">
-                            <label class="form-label">Etapa actual</label>
-                                <select class="form-select" id="etapa_actual" name="etapa_actual">
-                                    <option value="" selected>Seleccione</option>
-                                    @foreach ($parametros as $index => $parametro)
-                                        <option value="{{$parametro->estado}}" {{ request('etapa_actual') == $parametro->estado ? 'selected' : '' }}>{{$parametro->estado}}</option>
-                                    @endforeach                         
-                                </select>
-                        </div>
+                        
                         <div class="col-12 col-sm-4">
                             <label class="form-label">Fecha de asignación del grupo</label>
                             <input type="date" class="form-control" aria-describedby="basic-addon2" id="fecha_inicial" name="fecha_inicial" value="{{ request('fecha_inicial') }}">
@@ -78,8 +79,8 @@
                             <th class="table-primary">ENTIDAD</th>
                             <th class="table-primary">VISITA</th>
                             <th class="table-primary">ETAPA ACTUAL</th>
-                            <th class="table-primary">USUARIO ACTUAL</th>
                             <th class="table-primary">ESTADO ETAPA ACTUAL</th>
+                            <th class="table-primary">RESPONSABLE(S) DE LA ETAPA ACTUAL</th>
                             <th class="table-primary">ESTADO DE LA VISITA</th>
                             <th class="table-primary">ACCIONES</th>
                         </tr>
@@ -93,6 +94,13 @@
                                 <td>{{ $informe->numero_informe }}</td>
                                 <td>{{ $informe->etapa }}</td>
                                 <td>
+                                    @if($informe->estado_etapa === 'EN DESTIEMPO')
+                                        <p class="text-danger">{{ $informe->estado_etapa }}</p>
+                                    @else
+                                        <p class="text-success">{{ $informe->estado_etapa }}</p>
+                                    @endif
+                                </td>
+                                <td>
                                 @php
                                     $usuarios = json_decode($informe->usuario_actual);
                                     $totalUsuarios = count($usuarios);
@@ -102,13 +110,7 @@
                                     @if($key < $totalUsuarios - 1) , @endif
                                 @endforeach
                                 </td>
-                                <td>
-                                    @if($informe->estado_etapa === 'EN DESTIEMPO')
-                                        <p class="text-danger">{{ $informe->estado_etapa }}</p>
-                                    @else
-                                        <p class="text-success">{{ $informe->estado_etapa }}</p>
-                                    @endif
-                                </td>
+                                
                                 <td>
                                     @if($informe->estado_informe === 'EN DESTIEMPO')
                                         <p class="text-danger">{{ $informe->estado_informe }}</p>

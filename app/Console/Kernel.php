@@ -15,7 +15,7 @@ class Kernel extends ConsoleKernel
     {   
         $controller = new DiagnosticoController();
         $schedule->call([$controller, 'actualizar_dias_visitas'])->weekdays()->dailyAt('8:00');
-        $schedule->call([$controller, 'actualizar_historico_visitas'])->dailyAt('23:59');
+        $schedule->call([$controller, 'actualizar_historico_visitas'])->weekdays()->dailyAt('23:59');
     }
 
     /**

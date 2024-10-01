@@ -1,6 +1,6 @@
 <x-app-layout>
 
-    @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Administrador')
+    @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Intendente' || Auth::user()->profile === 'Administrador')
         <div class="container">
 
             <style>
@@ -253,7 +253,7 @@
                 </div>
             </div>
 
-            <div class="col col-sm-12 text-center mt-3">
+            <div class="col col-sm-12 text-center mt-3 mb-3">
                 <button type="button" class="btn btn-success" onclick="guardarEntidad()" >Guardar</button>
             </div>
         </div>

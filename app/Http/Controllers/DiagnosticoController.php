@@ -466,7 +466,10 @@ class DiagnosticoController extends Controller
         }
 
         $usuarios = User::get();
-        $informes = $informes->with('entidad')->orderby('id', 'desc')->paginate(10);
+        $informes = $informes->with('entidad')
+                            ->with('conteoDias')
+                            ->orderby('id', 'desc')
+                            ->paginate(10);
         $parametros = Parametro::get();
 
         return view('consultar_informe', [
@@ -846,6 +849,8 @@ class DiagnosticoController extends Controller
                 'sigla' => '',
                 'observacion' => '',
             ]);
+
+            dd();
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
                                                     ->with('etapaProceso')
