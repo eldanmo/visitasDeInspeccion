@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('parametros', function (Blueprint $table) {
+        Schema::create('lugares', function (Blueprint $table) {
             $table->id();
-            $table->string('estado')->unique();
-            $table->unsignedInteger('dias');
-            $table->integer('orden_etapa');
-            $table->string('usuario_creacion');
-            $table->string('proceso');
+            $table->string('region')->nullable();
+            $table->string('codigo_departamento')->nullable();
+            $table->string('departamento')->nullable();
+            $table->string('codigo_ciudad')->nullable();
+            $table->string('ciudad')->nullable();
             $table->timestamps();
         });
     }
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('parametros');
+        Schema::dropIfExists('lugares');
     }
 };

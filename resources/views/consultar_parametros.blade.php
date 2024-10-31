@@ -4,13 +4,33 @@
 
         <form action="{{ route('consultar_parametros') }}" method="GET">
 
+            <div class="row">
+                <div class="col-12 col-sm-4">
+                    <label class="form-label">Etapa</label>
+                    <input type="text" class="form-control" name="etapa" id="etapa" aria-describedby="basic-addon2" value="{{ request('etapa') }}">
+                </div>
+                <div class="col-12 col-sm-4">
+                    <label class="form-label">Proceso</label>
+                    <select class="form-control" name="proceso" id="proceso">
+                        <option value="">--Seleccione--</option>
+                        <option value="VISITAS_INSPECCION" {{ request('proceso') == 'VISITAS_INSPECCION' ? 'selected' : '' }} >VISITAS DE INSPECCIÓN</option>
+                        <option value="ASUNTOS_ESPECIALES" {{ request('proceso') == 'ASUNTOS_ESPECIALES' ? 'selected' : '' }}>ASUNTOS ESPECIALES</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="col col-sm-12 text-end mt-3 mb-3">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+            </div>
+
         </form>
         <div class="table-responsive">
             <table class="table table-sm">
                 <tr class="text-center">
                     <th class="table-primary">#</th>
-                    <th class="table-primary">Estado</th>
+                    <th class="table-primary">Etapa</th>
                     <th class="table-primary">Dias habiles</th>
+                    <th class="table-primary">Proceso</th>
                     <th class="table-primary">Acciones</th>
                 </tr>
                 <tbody>
@@ -20,6 +40,15 @@
                             <td class="text-center">{{ $index + 1 }}</td>
                             <td>{{ $parametro->estado }}</td>
                             <td class="text-center">{{ $parametro->dias }}</td>
+                            <td class="text-center">
+                                @if($parametro->proceso === 'VISITAS_INSPECCION')
+                                    VISITAS DE INSPECCIÓN
+                                @elseif($parametro->proceso === 'ASUNTOS_ESPECIALES')
+                                    ASUNTOS ESPECIALES
+                                @else
+                                    SIN PROCESO ASIGNADO
+                                @endif
+                            </td>
                             <td class="text-center">
                                 @if(Auth::user()->profile === 'Administrador' )
                                     <button class="btn btn-primary btn-sm" onclick="abrirModalEditarparametro('{{$parametro->id}}', '{{$parametro->estado}}','{{$parametro->dias }}')">

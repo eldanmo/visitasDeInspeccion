@@ -1501,7 +1501,6 @@ function planVisita() {
                 if (valueText !=  '') {
                     row[key] = valueText; 
                     banderaText = true;
-                    //labels.push('Nombre del archivo');
                 }
             });
 
@@ -2678,18 +2677,48 @@ function abrirVisitaInspeccion() {
             $(this).find('input[type="text"]').each(function() {
                 var key = $(this).attr('name');
                 var valueText = $(this).val();
-                if (valueText !=  '') {
-                    row[key] = valueText; 
-                    banderaText = true;
+
+                if (!key.includes("noobligat") ) {
+                    if (valueText !=  '' ) {
+                        row[key] = valueText; 
+                        banderaText = true;
+                    } 
+                }else{
+
+                    var fileInputNoObligat = $(this).closest('tr').find('input[type="file"]');
+                    
+                    if (fileInputNoObligat.length > 0) {
+
+                        console.log('al archivo');
+
+                        var keyFile = fileInputNoObligat.attr('name');
+                        var valuefile = fileInputNoObligat[0].files[0];
+                        if (keyFile.includes("noobligat") ) {
+
+                            if (valuefile !=  undefined) {
+
+                                row[key] = valueText; 
+                                banderaText = true;
+
+                                row[keyFile] = valuefile; 
+                                banderaFile=true;
+                                
+                            }
+                        }
+                    };
+
                 }
+                
             });
 
             $(this).find('input[type="file"]').each(function() {
                 var key = $(this).attr('name');
                 var valuefile = this.files[0];
-                if (valuefile !=  undefined) {
-                    row[key] = valuefile; 
-                    banderaFile=true;
+                if (!key.includes("noobligat") ) {
+                    if (valuefile !=  undefined) {
+                        row[key] = valuefile; 
+                        banderaFile=true;
+                    }
                 }
             });
 
@@ -4368,21 +4397,6 @@ function abrirVisitaInspeccion() {
     let anexos_adicionales = [];
 
     let grupo_inspeccion = [];
-
-    /*$('.tr_grupo_designados_traslado').each(function () {
-
-        var row = {};
-            $(this).find('select').each(function() {
-                var key = $(this).attr('name');
-                var value = $(this).val();
-                row[key] = value;
-
-                if (value === '') {
-                    bandera = true;
-                }
-            });
-            grupo_inspeccion.push(row);
-    })*/
     
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var formData = new FormData();
@@ -4622,21 +4636,25 @@ function abrirVisitaInspeccion() {
 
     var heads = {'X-CSRF-TOKEN': token}
 
-    $('.required_pronunciacion_entidad').each(function() {
-        if ($(this).val() === '') {
-            if (($(this).attr('id') === 'radicado_entrada_pronunciacion' && $('#confirmacion_pronunciacion_entidad').val() === 'Si')
-                || $(this).attr('id') === 'confirmacion_pronunciacion_entidad' ) {
-                var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+    let radicado_entrada_pronunciacion_empresa_solidaria = document.getElementById('radicado_entrada_pronunciacion_empresa_solidaria').value;
+    let fecha_radicado_entrada_pronunciacion_empresa_solidaria = document.getElementById('fecha_radicado_entrada_pronunciacion_empresa_solidaria').value;
+    let radicado_entrada_pronunciacion_revisoria_fiscal = document.getElementById('radicado_entrada_pronunciacion_revisoria_fiscal').value;
+    let fecha_radicado_entrada_pronunciacion_revisoria_fiscal = document.getElementById('fecha_radicado_entrada_pronunciacion_revisoria_fiscal').value;
+    let confirmacion_pronunciacion_entidad = document.getElementById('confirmacion_pronunciacion_entidad').value;
+    
+    if (confirmacion_pronunciacion_entidad === '') {
+        labels.push('¿La organización de la economía solidaria realiza pronunciamiento alguno en el marco del traslado?');
+        bandera = true;
+    }
 
-                labels.push(label);
-                bandera = true;
-            }else{
-                formData.append($(this).attr('id'), $(this).val());
-            }
-        } else {
-            formData.append($(this).attr('id'), $(this).val());
-        }
-    });
+    if (
+        (radicado_entrada_pronunciacion_empresa_solidaria === '' && fecha_radicado_entrada_pronunciacion_empresa_solidaria === '' 
+        && radicado_entrada_pronunciacion_revisoria_fiscal === '' && fecha_radicado_entrada_pronunciacion_revisoria_fiscal === '') 
+        && confirmacion_pronunciacion_entidad === 'Si'
+     ) {
+        labels.push('Alguno de los radicados de entrada y fecha');
+        bandera = true;
+    }
 
     let resultado_anexos = cargarDocumentosAdicionales('.tr_documentos_adicionales_registrar_pronunciamiento');
     let bandera_anexos = resultado_anexos.bandera;
@@ -4663,6 +4681,12 @@ function abrirVisitaInspeccion() {
 
         return;
     }
+    
+    formData.append('radicado_entrada_pronunciacion_empresa_solidaria', radicado_entrada_pronunciacion_empresa_solidaria);
+    formData.append('fecha_radicado_entrada_pronunciacion_empresa_solidaria', fecha_radicado_entrada_pronunciacion_empresa_solidaria);
+    formData.append('radicado_entrada_pronunciacion_revisoria_fiscal', radicado_entrada_pronunciacion_revisoria_fiscal);
+    formData.append('fecha_radicado_entrada_pronunciacion_revisoria_fiscal', fecha_radicado_entrada_pronunciacion_revisoria_fiscal);
+    formData.append('confirmacion_pronunciacion_entidad', confirmacion_pronunciacion_entidad);
 
     if (anexos_adicionales.length > 0 ) {
         anexos_adicionales.forEach((item, index) => {
@@ -5442,13 +5466,60 @@ function abrirVisitaInspeccion() {
     });
   }
 
+  // Variables globales para los gráficos
+  let chartVisitasEtapa = null;
+  let chartVisitasEstado = null;
+  let chartVisitasEstadoEtapa = null;
+  let chartDiasPorEstado = null;
+  let chartVisitasNaturaleza = null;
+  let chartVisitasTipoOrganizacion = null;
+
   function estadisticas() {
 
     let url = `/estadisticas_datos`;
     const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     var heads = {'X-CSRF-TOKEN': token};
+
+    let etapa_actual = document.getElementById('etapa_actual').value;
+    let estado_etapa = document.getElementById('estado_etapa').value;
+    let estado_informe = document.getElementById('estado_informe').value;
+    let fecha_inicial = document.getElementById('fecha_inicial');
+    let fecha_final = document.getElementById('fecha_final');
+    let region = document.getElementById('region');
+    let departamentos = document.getElementById('departamentos');
+    let naturaleza_organizacion = document.getElementById('naturaleza_organizacion');
+    let tipo_organizacion = document.getElementById('tipo_organizacion');
+    let nivel_supervision = document.getElementById('nivel_supervision');
+
+    //Rango de fechas año actual
+    const fechaActual = new Date();
+    const anioActual = fechaActual.getFullYear();  
+
+    if (fecha_inicial.value == '' && fecha_final.value == '' ) {
+        fecha_inicial.value = anioActual+'-01-01';
+        fecha_final.value = anioActual+'-12-31';
+    }else{
+        fecha_inicial.value = fecha_inicial.value;
+        fecha_final.value = fecha_final.value;
+    }
+
+    var formData = new FormData();
+    formData.append('etapa_actual', etapa_actual);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('estado_informe', estado_informe);
+    formData.append('fecha_inicial', fecha_inicial.value);
+    formData.append('fecha_final', fecha_final.value);
+    formData.append('region', region.value);
+    formData.append('departamentos', departamentos.value);
+    formData.append('naturaleza_organizacion', naturaleza_organizacion.value);
+    formData.append('tipo_organizacion', tipo_organizacion.value);
+    formData.append('nivel_supervision', nivel_supervision.value);
+
     let etapasContadas = {};
     let etapasSinRepetir = [];
+
+    let naturalezaContadas = {};
+    let naturalezaSinRepetir = [];
 
     let estadosContados = {};
     let estadosSinRepetir = [];
@@ -5456,8 +5527,14 @@ function abrirVisitaInspeccion() {
     let estadosEtapasContados = {};
     let estadosEtapaSinRepetir = [];
 
+    let tipoOrganizacionContadas = {};
+    let tipoOrganizacionSinRepetir = [];
+
+    let nivelSupervisionContadas = {};
+
     fetch(url,{
         method: 'POST',
+        body: formData,
         headers: heads,
     }).then(response => {
         if (!response.ok) {
@@ -5469,17 +5546,114 @@ function abrirVisitaInspeccion() {
     })
     .then(data => {
         const message = data.datos;
-        const conteo_dias = data.conteo_dias;
+        const parametros = data.parametros;
+        const cantidad_visitas_actuales = data.cantidad_visitas_actuales;
+        const departamentos = data.lugares;
+        const mayor_valor_etapa = 36;
+
+        let cantidad_visitas_consultadas = document.getElementById('cantidad_visitas_consultadas');
+        cantidad_visitas_consultadas.innerText = 'Cantidad de visitas consultadas: '+cantidad_visitas_actuales;
+
+
+        
+        //Añadir opciones al select de etapa actual
+        let select_etapa_actual = document.getElementById('etapa_actual');
+
+        if (select_etapa_actual.value == '') {
+            //Vaciar las opciones del select
+            vaciarSelect('etapa_actual');
+
+            let nueva_opcion_select = new Option("Seleccione", "");
+            select_etapa_actual.add(nueva_opcion_select);
+
+            parametros.forEach(parametros => { 
+                let nombre_parametro = parametros.estado;
+
+                nueva_opcion_select = new Option(nombre_parametro, nombre_parametro); 
+
+                select_etapa_actual.add(nueva_opcion_select);
+            });
+        }else{
+            select_etapa_actual.value = select_etapa_actual.value;
+        }
+
+        //Añadir opciones al select de departamentos
+        let select_departamentos = document.getElementById('departamentos');
+
+        if (select_departamentos.value == '') {
+            //Vaciar las opciones del select
+            vaciarSelect('departamentos');
+
+            let nueva_opcion_select_departamento = new Option("Seleccione", "");
+            select_departamentos.add(nueva_opcion_select_departamento);
+
+            departamentos.forEach(departamento => { 
+                let nombre_departamento = departamento.departamento;
+                let id_departamento = departamento.id;
+
+                nueva_opcion_select_departamento = new Option(nombre_departamento, nombre_departamento); 
+
+                select_departamentos.add(nueva_opcion_select_departamento);
+            });
+        }else{
+            select_departamentos.value = select_departamentos.value;
+        }
 
         message.forEach(dato => {
             let etapa = dato.etapa;
             let estado = dato.estado_informe;
             let estado_etapa = dato.estado_etapa;
+            let naturaleza_organizacion = dato.entidad.naturaleza_organizacion;
+            let tipo_organizacion = dato.entidad.tipo_organizacion;
+            let nivel_supervision = dato.entidad.nivel_supervision;
+            
+            if (!etapasContadas.hasOwnProperty(etapa)) {
+                etapasContadas[etapa] = {
+                    conteo_etapa: 0,
+                    nivel_1: 0,
+                    nivel_2: 0,
+                    nivel_3: 0,
+                };
+            }
 
-            if (etapasContadas.hasOwnProperty(etapa)) {
-                etapasContadas[etapa]++;
-            } else {
-                etapasContadas[etapa] = 1;
+            // Incrementa el conteo general de la etapa
+            etapasContadas[etapa].conteo_etapa++;
+
+            if (!naturalezaContadas.hasOwnProperty(naturaleza_organizacion)) {
+                naturalezaContadas[naturaleza_organizacion] = {
+                    conteo_naturaleza: 0,
+                    nivel_1: 0,
+                    nivel_2: 0,
+                    nivel_3: 0,
+                };
+            } 
+
+            naturalezaContadas[naturaleza_organizacion].conteo_naturaleza++;
+
+            if (!tipoOrganizacionContadas.hasOwnProperty(tipo_organizacion)) {
+                tipoOrganizacionContadas[tipo_organizacion] = {
+                    conteo_tipo: 0,
+                    nivel_1: 0,
+                    nivel_2: 0,
+                    nivel_3: 0,
+                };
+            } 
+
+            tipoOrganizacionContadas[tipo_organizacion].conteo_tipo++;
+
+            // Incrementa el conteo específico según el nivel de supervisión
+            if (nivel_supervision == 1) {
+                etapasContadas[etapa].nivel_1++;
+                naturalezaContadas[naturaleza_organizacion].nivel_1++;
+                tipoOrganizacionContadas[tipo_organizacion].nivel_1++;
+            } else if (nivel_supervision == 2) {
+                etapasContadas[etapa].nivel_2++;
+                naturalezaContadas[naturaleza_organizacion].nivel_2++;
+                tipoOrganizacionContadas[tipo_organizacion].nivel_2++;
+            } else if (nivel_supervision == 3) {
+                etapasContadas[etapa].nivel_3++;
+                naturalezaContadas[naturaleza_organizacion].nivel_3++;
+                tipoOrganizacionContadas[tipo_organizacion].nivel_3++;
             }
 
             if (estadosContados.hasOwnProperty(estado)) {
@@ -5493,33 +5667,63 @@ function abrirVisitaInspeccion() {
             } else {
                 estadosEtapasContados[estado_etapa] = 1;
             }
+
+            if (nivelSupervisionContadas.hasOwnProperty(nivel_supervision)) {
+                nivelSupervisionContadas[nivel_supervision]++;
+            } else {
+                nivelSupervisionContadas[nivel_supervision] = 1;
+            }
         });
 
         etapasSinRepetir = Object.keys(etapasContadas);
         const soloNumeros = Object.values(etapasContadas);
         const visitas_etapa = document.getElementById('visitas_etapa');
 
-        new Chart(visitas_etapa, {
+        const coloresNivel = {
+            1: 'rgb(41, 114, 241)',
+            2: 'rgb(41, 241, 68)',
+            3: 'rgb(44, 225, 200)',
+        };
+
+        // Extraemos los valores de cada nivel en arreglos separados
+        const dataNivel1 = soloNumeros.map(item => item.nivel_1 === 0 ? null : item.nivel_1);
+        const dataNivel2 = soloNumeros.map(item => item.nivel_2 === 0 ? null : item.nivel_2);
+        const dataNivel3 = soloNumeros.map(item => item.nivel_3 === 0 ? null : item.nivel_3);
+        
+        //Destruye el gráfico si existe
+        if (chartVisitasEtapa) {
+            chartVisitasEtapa.destroy();
+        }
+
+        //Crea un nuevo gráfico
+        chartVisitasEtapa = new Chart(visitas_etapa, {
             type: 'bar',
-            plugins: [ChartDataLabels],
             data: {
                 labels: etapasSinRepetir,
-                datasets: [{
-                    label: 'Visitas de inspección',
-                    data: soloNumeros,
-                    borderWidth: 1,
-                    backgroundColor: [
-                        'rgb(255, 186, 125)',
-                        'rgb(255, 235, 125)',
-                        'rgb(233, 255, 125)',
-                        'rgb(172, 255, 125)',
-                        'rgb(125, 255, 164)',
-                        'rgb(125, 255, 200)',
-                        'rgb(125, 220, 255)',
-                        'rgb(149, 125, 255)',
-                    ],
-                }]
+                datasets: [
+                    {
+                        label: 'Nivel 1',
+                        data: dataNivel1,
+                        borderWidth: 1,
+                        backgroundColor: coloresNivel[1],
+                    },
+                    {
+                        label: 'Nivel 2',
+                        data: dataNivel2,
+                        borderWidth: 1,
+                        backgroundColor: coloresNivel[2],
+                    },
+                    {
+                        label: 'Nivel 3',
+                        data: dataNivel3,
+                        borderWidth: 1,
+                        backgroundColor: coloresNivel[3],
+                    },
+                ]
             },
+
+            plugins: [ChartDataLabels],
+            
             options: {
                 plugins: {
                     datalabels: {
@@ -5527,9 +5731,12 @@ function abrirVisitaInspeccion() {
                     }
                 },
                 scales: {
-                    y: {
-                    beginAtZero: true
-                    }
+                  x: {
+                    stacked: true,
+                  },
+                  y: {
+                    stacked: true
+                  }
                 }
             }
         });
@@ -5538,7 +5745,13 @@ function abrirVisitaInspeccion() {
         estadosSinRepetir = Object.keys(estadosContados);
         const soloNumerosEstados = Object.values(estadosContados);
 
-        new Chart(visitas_estado, {
+        // Destruir gráfico anterior si existe
+        if (chartVisitasEstado) {
+            chartVisitasEstado.destroy();
+        }
+
+        //Crea un nuevo gráfico
+        chartVisitasEstado = new Chart(visitas_estado, {
             type: 'pie',
             plugins: [ChartDataLabels],
             data: {
@@ -5572,7 +5785,13 @@ function abrirVisitaInspeccion() {
         estadosEtapaSinRepetir = Object.keys(estadosEtapasContados);
         const soloNumerosEstadosEtapas = Object.values(estadosEtapasContados);
 
-        new Chart(visitas_estado_etapa, {
+        // Destruir gráfico anterior si existe
+        if (chartVisitasEstadoEtapa) {
+            chartVisitasEstadoEtapa.destroy();
+        }
+
+        //Crea un nuevo gráfico
+        chartVisitasEstadoEtapa = new Chart(visitas_estado_etapa, {
             type: 'doughnut',
             plugins: [ChartDataLabels],
             data: {
@@ -5604,20 +5823,60 @@ function abrirVisitaInspeccion() {
             }
         });
 
-        const etapasConteoDias = conteo_dias.map(objeto => objeto.etapa);
-        const promediosConteoDias = conteo_dias.map(objeto => objeto.promedio_conteo_dias);
-
-        console.log('etapasConteoDias', etapasConteoDias, 'promediosConteoDias', promediosConteoDias);
         const dias_por_estado = document.getElementById('dias_por_estado');
 
-        new Chart(dias_por_estado, {
+        let prom = data.datos;
+        let etapasConteo = {};
+
+        // Recorrer los datos y acumular días y conteos por etapa
+        prom.forEach(conteo_dia => {
+            let conteo_por_visita = conteo_dia.conteo_dias;
+
+            conteo_por_visita.forEach(dias => {
+                let etapa = dias.etapa;
+                let conteoDias = dias.conteo_dias;
+
+                // Inicializar el objeto para la etapa si no existe
+                if (!etapasConteo[etapa]) {
+                    etapasConteo[etapa] = { totalDias: 0, visitas: 0 };
+                }
+
+                // Acumular los días y contar la visita
+                etapasConteo[etapa].totalDias += parseInt(conteoDias);
+                etapasConteo[etapa].visitas += parseInt(1);
+            });
+        });
+
+        // Calcular el promedio de días por etapa
+        let promediosPorEtapa = {};
+        let etapas_promedio = [];
+        let prmedios_etapas_promedio = [];
+        for (let etapa in etapasConteo) {
+            let totalDias = etapasConteo[etapa].totalDias;
+            let visitas = etapasConteo[etapa].visitas;
+            let promedio = totalDias / visitas;
+
+            // Redondear el promedio a dos decimales
+            promediosPorEtapa[etapa] = parseFloat(promedio.toFixed(2));
+
+            etapas_promedio.push(etapa);
+            prmedios_etapas_promedio.push(parseFloat(promedio.toFixed(2)));
+        }
+
+        // Destruir gráfico anterior si existe
+        if (chartDiasPorEstado) {
+            chartDiasPorEstado.destroy();
+        }
+
+        //Crea un nuevo gráfico
+        chartDiasPorEstado = new Chart(dias_por_estado, {
             type: 'bar',
             plugins: [ChartDataLabels],
             data: {
-                labels: etapasConteoDias,
+                labels: etapas_promedio,
                 datasets: [{
-                    label: 'Días habiles',
-                    data: promediosConteoDias,
+                    label: 'Días hábiles',
+                    data: prmedios_etapas_promedio,
                     borderWidth: 1,
                     backgroundColor: [
                         'rgb(149, 125, 255)',
@@ -5626,6 +5885,7 @@ function abrirVisitaInspeccion() {
             },
             options: {
                 indexAxis: 'y',
+                responsive: true,
                 plugins: {
                     datalabels: {
                       color: '#FFFFFF'
@@ -5633,7 +5893,10 @@ function abrirVisitaInspeccion() {
                 },
                 scales: {
                     y: {
-                    beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            maxTicksLimit: etapas_promedio.length, // Asegura que no se limiten las etiquetas
+                        }
                     }
                 },
                 animations: {
@@ -5644,15 +5907,408 @@ function abrirVisitaInspeccion() {
                       to: 0,
                       loop: true
                     }
-                },
+                }
             }
         });
+        
+
+        //Estadísticas por departamento
+
+        const departmentCounts = new Map();
+        const avanceEtapaSums = new Map();
+
+        message.forEach(dato => {
+            let departamento = dato.entidad.lugar.departamento;
+            let avance_etapa = dato.etapa_proceso.orden_etapa;
+            
+            if (departmentCounts.has(departamento)) {
+                departmentCounts.set(departamento, departmentCounts.get(departamento) + 1);
+            } else {
+                departmentCounts.set(departamento, 1);
+            }
+
+            if (avanceEtapaSums.has(departamento)) {
+                avanceEtapaSums.set(departamento, avanceEtapaSums.get(departamento) + avance_etapa);
+            } else {
+                avanceEtapaSums.set(departamento, avance_etapa);
+            }
+        });
+
+        let labels = [
+            { department: 'ANTIOQUIA', x: 215, y: 180, value: 1, cumplimiento: 0 },
+            { department: 'BOGOTA', x: 250, y: 230, value: 2, cumplimiento: 0 },
+            { department: 'NARIÑO', x: 155, y: 300, value: 3, cumplimiento: 0 },
+            { department: 'AMAZONAS', x: 315, y: 375, value: 4, cumplimiento: 0 },
+            { department: 'ARAUCA', x: 320, y: 180, value: 5, cumplimiento: 0 },
+            { department: 'ATLANTICO', x: 230, y: 80, value: 6, cumplimiento: 0 },
+            { department: 'BOLIVAR', x: 249, y: 145, value: 7, cumplimiento: 0 },
+            { department: 'BOYACA', x: 272, y: 210, value: 8, cumplimiento: 0 },
+            { department: 'CALDAS', x: 225, y: 210, value: 9, cumplimiento: 0 },
+            { department: 'CAQUETA', x: 250, y: 325, value: 10, cumplimiento: 0 },
+            { department: 'CASANARE', x: 310, y: 210, value: 11, cumplimiento: 0 },
+            { department: 'CAUCA', x: 175, y: 280, value: 12, cumplimiento: 0 },
+            { department: 'CESAR', x: 260, y: 100, value: 13, cumplimiento: 0 },
+            { department: 'CHOCO', x: 180, y: 210, value: 14, cumplimiento: 0 },
+            { department: 'CORDOBA', x: 205, y: 140, value: 15, cumplimiento: 0 },
+            { department: 'CUNDINAMARCA', x: 240, y: 215, value: 16, cumplimiento: 0 },
+            { department: 'GUAINIA', x: 375, y: 275, value: 17, cumplimiento: 0 },
+            { department: 'GUAVIARE', x: 290, y: 295, value: 18, cumplimiento: 0 },
+            { department: 'HUILA', x: 210, y: 275, value: 19, cumplimiento: 0 },
+            { department: 'LA GUAJIRA', x: 275, y: 65, value: 20, cumplimiento: 0 },
+            { department: 'MAGDALENA', x: 240, y: 105, value: 21, cumplimiento: 0 },
+            { department: 'META', x: 275, y: 255, value: 22, cumplimiento: 0 },
+            { department: 'NORTE DE SANTANDER', x: 275, y: 150, value: 23, cumplimiento: 0 },
+            { department: 'PUTUMAYO', x: 195, y: 325, value: 24, cumplimiento: 0 },
+            { department: 'QUINDIO', x: 210, y: 235, value: 25, cumplimiento: 0 },
+            { department: 'RISARALDA', x: 205, y: 215, value: 26, cumplimiento: 0 },
+            { department: 'SAN ANDRES', x: 170, y: 75, value: 27, cumplimiento: 0 },
+            { department: 'SANTANDER', x: 260, y: 180, value: 28, cumplimiento: 0 },
+            { department: 'SUCRE', x: 225, y: 125, value: 29, cumplimiento: 0 },
+            { department: 'TOLIMA', x: 220, y: 250, value: 30, cumplimiento: 0 },
+            { department: 'VALLE DEL CAUCA', x: 185, y: 250, value: 31, cumplimiento: 0 },
+            { department: 'VAUPES', x: 325, y: 315, value: 32, cumplimiento: 0 },
+            { department: 'VICHADA', x: 365, y: 225, value: 33, cumplimiento: 0 },
+        ];
+
+        labels = labels.map(label => {
+
+            const count = departmentCounts.get(label.department) || '';
+
+            if (count) {
+                return {
+                    ...label,
+                    value: count
+                };
+            }else{
+                return null; 
+            }
+                
+        }).filter(label => label !== null);   
+
+        labels = labels.map(label => {
+
+            const count = avanceEtapaSums.get(label.department) || '';
+
+            if (count) {
+                return {
+                    ...label,
+                    cumplimiento: count
+                };
+            }else{
+                return null; 
+            }
+                
+        }).filter(label => label !== null); 
+        
+
+        let table_cumplimiento_departamental = document.getElementById('table_cumplimiento_departamental');
+
+        // Limpiar labels anteriores
+        const labels_limpiar = document.querySelectorAll('.department-label');
+        labels_limpiar.forEach(label => label.remove());
+
+        // Limpiar filas anteriores de la tabla
+        while (table_cumplimiento_departamental.rows.length > 0) {
+            table_cumplimiento_departamental.deleteRow(0);
+        }
+
+        let cantidad_departamentos = 0;
+        let cumplimientos_visitas = [];
+
+        labels.forEach((label,i) => {
+
+            let total_cumplimiento_departamento = label.cumplimiento;
+            let cantidad_visitas_departamento = label.value;
+            let ponderado_cumplimiento_departamento = parseFloat(mayor_valor_etapa) * parseFloat(cantidad_visitas_departamento);
+
+            let porcentaje_cumplimiento_departamento = parseFloat(total_cumplimiento_departamento) / parseFloat(ponderado_cumplimiento_departamento);
+
+            const div = document.createElement('div');
+            div.className = 'department-label';
+            div.style.top = label.y + 'px';
+            div.style.left = label.x + 'px';
+            div.textContent = label.value;
+            document.querySelector('.map-container').appendChild(div);
+            
+            if (label.value) {
+                let nueva_fila = table_cumplimiento_departamental.insertRow();
+                let celda_consecutivo = nueva_fila.insertCell(0);
+                let celda_departamento = nueva_fila.insertCell(1);
+                let celda_cantidad_visitas = nueva_fila.insertCell(2);
+                let celda_porcentaje_cumplimiento = nueva_fila.insertCell(3);
+
+                celda_consecutivo.textContent = i+1;
+                celda_departamento.textContent = label.department;
+                celda_cantidad_visitas.textContent = label.value;
+                celda_porcentaje_cumplimiento.textContent = (parseFloat(porcentaje_cumplimiento_departamento)*100).toFixed(2) + '%' ;
+            }
+
+            cantidad_departamentos++;
+            cumplimientos_visitas.push(porcentaje_cumplimiento_departamento);
+
+        });
+
+        //Barra de progreso
+
+        let sumatoria_cumplimiento_visitas = cumplimientos_visitas.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
+        let porcentual_cumplimiento_visitas = parseFloat(sumatoria_cumplimiento_visitas) / parseFloat(cantidad_departamentos);
+
+        let barra_progreso = document.getElementById('progreso_total');
+
+        barra_progreso.textContent = (parseFloat(porcentual_cumplimiento_visitas)*100).toFixed(2) + '%' ;
+        barra_progreso.style.width = (parseFloat(porcentual_cumplimiento_visitas)*100).toFixed(2) + '%'
+
+        //Estadísticas por región
+
+        const regionCounts = new Map();
+        const avanceRegionSums = new Map();
+
+        message.forEach(dato => {
+            let region = dato.entidad.lugar.region;
+            let avance_region = dato.etapa_proceso.orden_etapa;
+
+            console.log('region',region);
+            
+            
+            if (regionCounts.has(region)) {
+                regionCounts.set(region, regionCounts.get(region) + 1);
+            } else {
+                regionCounts.set(region, 1);
+            }
+
+            if (avanceRegionSums.has(region)) {
+                avanceRegionSums.set(region, avanceRegionSums.get(region) + avance_region);
+            } else {
+                avanceRegionSums.set(region, avance_region);
+            }
+        });
+
+        let labels_region = [
+            { region: 'AMAZONICA', x: 315, y: 375, value: 1, cumplimiento: 0 },
+            { region: 'ORINOQUIA', x: 290, y: 295, value: 2, cumplimiento: 0 },
+            { region: 'CARIBE', x: 249, y: 115, value: 3, cumplimiento: 0 },
+            { region: 'ANDINA', x: 250, y: 230, value: 4, cumplimiento: 0 },
+            { region: 'PACIFICA', x: 185, y: 250, value: 5, cumplimiento: 0 },
+            
+        ];
+
+        labels_region = labels_region.map(label => {
+
+            const count = regionCounts.get(label.region) || '';
+
+            if (count) {
+                return {
+                    ...label,
+                    value: count
+                };
+            }else{
+                return null; 
+            }
+                
+        }).filter(label => label !== null);   
+
+        labels_region = labels_region.map(label => {
+
+            const count = avanceRegionSums.get(label.region) || '';
+
+            if (count) {
+                return {
+                    ...label,
+                    cumplimiento: count
+                };
+            }else{
+                return null; 
+            }
+                
+        }).filter(label => label !== null); 
+
+
+        let table_cumplimiento_regional = document.getElementById('table_cumplimiento_regional');
+
+        // Limpiar labels anteriores
+        const labels_limpiar_region = document.querySelectorAll('.region-label');
+        labels_limpiar_region.forEach(label => label.remove());
+
+        // Limpiar filas anteriores de la tabla
+        while (table_cumplimiento_regional.rows.length > 0) {
+            table_cumplimiento_regional.deleteRow(0);
+        }
+
+        let cantidad_giones = 0;
+        let cumplimientos_visitas_regiones = [];
+
+        labels_region.forEach((label,i) => {
+
+            let total_cumplimiento_region = label.cumplimiento;
+            let cantidad_visitas_region = label.value;
+            let ponderado_cumplimiento_region = parseFloat(mayor_valor_etapa) * parseFloat(cantidad_visitas_region);
+
+            let porcentaje_cumplimiento_region = parseFloat(total_cumplimiento_region) / parseFloat(ponderado_cumplimiento_region);
+
+            const div = document.createElement('div');
+            div.className = 'region-label';
+            div.style.top = label.y + 'px';
+            div.style.left = label.x + 'px';
+            div.textContent = label.value;
+            document.querySelector('.map-container-regiones').appendChild(div);
+            
+            if (label.value) {
+                let nueva_fila = table_cumplimiento_regional.insertRow();
+                let celda_consecutivo = nueva_fila.insertCell(0);
+                let celda_departamento = nueva_fila.insertCell(1);
+                let celda_cantidad_visitas = nueva_fila.insertCell(2);
+                let celda_porcentaje_cumplimiento = nueva_fila.insertCell(3);
+
+                celda_consecutivo.textContent = i+1;
+                celda_departamento.textContent = label.region;
+                celda_cantidad_visitas.textContent = label.value;
+                celda_porcentaje_cumplimiento.textContent = (parseFloat(porcentaje_cumplimiento_region)*100).toFixed(2) + '%' ;
+            }
+
+            cantidad_giones++;
+            cumplimientos_visitas_regiones.push(porcentaje_cumplimiento_region);
+
+        });
+        
+        //Gráfico por naturaleza organización
+
+            naturalezaSinRepetir = Object.keys(naturalezaContadas);
+            const soloNumerosNaturaleza = Object.values(naturalezaContadas);
+            
+            // Extraemos los valores de cada nivel en arreglos separados
+            const dataNivelNaturaleza1 = soloNumerosNaturaleza.map(item => item.nivel_1 === 0 ? null : item.nivel_1);
+            const dataNivelNaturaleza2 = soloNumerosNaturaleza.map(item => item.nivel_2 === 0 ? null : item.nivel_2);
+            const dataNivelNaturaleza3 = soloNumerosNaturaleza.map(item => item.nivel_3 === 0 ? null : item.nivel_3);
+
+            //Destruye el gráfico si existe
+            if (chartVisitasNaturaleza) {
+                chartVisitasNaturaleza.destroy();
+            }
+
+            //Crea un nuevo gráfico
+            chartVisitasNaturaleza = new Chart(naturaleza, {
+                type: 'bar',
+                plugins: [ChartDataLabels],
+                data: {
+                    labels: naturalezaSinRepetir,
+                    datasets: [
+                        {
+                            label: 'Nivel 1',
+                            data: dataNivelNaturaleza1,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[1],
+                        },
+                        {
+                            label: 'Nivel 2',
+                            data: dataNivelNaturaleza2,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[2],
+                        },
+                        {
+                            label: 'Nivel 3',
+                            data: dataNivelNaturaleza3,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[3],
+                        },
+                    ]
+                },
+
+                options: {
+                    plugins: {
+                        datalabels: {
+                        color: '#FFFFFF'
+                        }
+                    },
+                    scales: {
+                    x: {
+                        stacked: true,
+                    },
+                    y: {
+                        stacked: true
+                    }
+                    }
+                }
+            });
+
+        //Gráfico por tipo de organización
+            tipoOrganizacionSinRepetir = Object.keys(tipoOrganizacionContadas);
+            const soloNumerosTipoOrganizacion = Object.values(tipoOrganizacionContadas);
+            const tipoOrganizacion = document.getElementById('grafico_tipo_organizacion');
+            
+            // Extraemos los valores de cada nivel en arreglos separados
+            const dataNivelTipo1 = soloNumerosTipoOrganizacion.map(item => item.nivel_1 === 0 ? null : item.nivel_1);
+            const dataNivelTipo2 = soloNumerosTipoOrganizacion.map(item => item.nivel_2 === 0 ? null : item.nivel_2);
+            const dataNivelTipo3 = soloNumerosTipoOrganizacion.map(item => item.nivel_3 === 0 ? null : item.nivel_3);
+
+            //Destruye el gráfico si existe
+            if (chartVisitasTipoOrganizacion) {
+                chartVisitasTipoOrganizacion.destroy();
+            }
+
+            //Crea un nuevo gráfico
+            chartVisitasTipoOrganizacion = new Chart(tipoOrganizacion, {
+                type: 'bar',
+                plugins: [ChartDataLabels],
+                data: {
+                    labels: tipoOrganizacionSinRepetir,
+                    datasets: [
+                        {
+                            label: 'Nivel 1',
+                            data: dataNivelTipo1,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[1],
+                        },
+                        {
+                            label: 'Nivel 2',
+                            data: dataNivelTipo2,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[2],
+                        },
+                        {
+                            label: 'Nivel 3',
+                            data: dataNivelTipo3,
+                            borderWidth: 1,
+                            backgroundColor: coloresNivel[3],
+                        },
+                    ]
+                },
+
+                options: {
+                    plugins: {
+                        datalabels: {
+                        color: '#FFFFFF'
+                        }
+                    },
+                    scales: {
+                    x: {
+                        stacked: true,
+                    },
+                    y: {
+                        stacked: true
+                    }
+                    }
+                }
+            });
+
+
     })
     .catch(error => {
         Swal.fire('Error', error.message, 'error');
-    })
+    })  
+  }
 
-    
+  /**
+    * vacia las opciones de un select.
+    * @param {string} select_id - id del select.
+  */
+
+  function vaciarSelect(select_id){
+
+        let select = document.getElementById(select_id);
+
+        while (select.options.length > 0) {
+            select.remove(0);
+        }
   }
 
   function crearDiaNoLaboral() {
@@ -6526,6 +7182,267 @@ function guardar_documento_adicional_visita_inspeccion() {
     });
 }
 
+function registroComunicadoPrevioVisita() {
+    
+    var bandera = false;
+
+    var labels = [];
+    var anexos_adicionales = [];
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let observacion = $('#observaciones_oficio_previo_visita').val();
+
+    var url = `/registrar_comunicado_previo_visita`;
+    let id = $('#id').val();
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observacion);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    $('.required_requerimiento_previo_visita').each(function() {
+        if ($(this).val() === '') {
+            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+            labels.push(label);
+            bandera = true;
+        } else {
+            formData.append($(this).attr('id'), $(this).val());
+        }
+    });
+
+    $('.tr_documentos_adicionales_oficio_previo_visita').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+    })
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.diagnosticoSubsanado').prop('disabled', true);
+
+    fetch(url, {
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Error en la solicitud');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(() => {
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.diagnosticoSubsanado').prop('disabled', false);
+    });
+}
+
+function registroOficioTraslado() {
+    
+    var bandera = false;
+
+    var labels = [];
+    var anexos_adicionales = [];
+    let etapa = $('#etapa').val();
+    let estado = $('#estado').val();
+    let estado_etapa = $('#estado_etapa').val();
+    let numero_informe = $('#numero_informe').val();
+    let razon_social = $('#razon_social').val();
+    let nit = $('#nit').val();
+    let observacion = $('#observaciones_oficio_traslado_visita').val();
+
+    var url = `/registrar_oficio_traslado`;
+    let id = $('#id').val();
+    
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var formData = new FormData();
+
+    formData.append('id', id);
+    formData.append('etapa', etapa);
+    formData.append('estado', estado);
+    formData.append('estado_etapa', estado_etapa);
+    formData.append('numero_informe', numero_informe);
+    formData.append('razon_social', razon_social);
+    formData.append('nit', nit);
+    formData.append('observaciones', observacion);
+
+    var heads = {'X-CSRF-TOKEN': token};
+
+    $('.required_requerimiento_traslado').each(function() {
+        if ($(this).val() === '') {
+            var label = $('label[for="' + $(this).attr('id') + '"]').text().replace(' (*)','');
+            labels.push(label);
+            bandera = true;
+        } else {
+            formData.append($(this).attr('id'), $(this).val());
+        }
+    });
+
+    $('.tr_documentos_oficio_traslado_visita').each(function () {
+
+        var row = {};
+        var banderaText = false;
+        var banderaFile = false;
+
+            $(this).find('input[type="text"]').each(function() {
+                var key = $(this).attr('name');
+                var valueText = $(this).val();
+                if (valueText !=  '') {
+                    row[key] = valueText; 
+                    banderaText = true;
+                }
+            });
+
+            $(this).find('input[type="file"]').each(function() {
+                var key = $(this).attr('name');
+                var valuefile = this.files[0];
+                if (valuefile !=  undefined) {
+                    row[key] = valuefile; 
+                    banderaFile=true;
+                }
+            });
+
+            if (banderaText && banderaFile) {
+                anexos_adicionales.push(row);
+            }
+    })
+
+    if (bandera) {
+        var html = `<label>Los siguientes datos son obligatorios:</label><br><ol type=”A”>`;
+        for (var i = 0; i < labels.length; i++) {
+            html += '<li>' + labels[i] + '</li>';
+        }
+        html += '</ol>';
+
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            html: html,
+        });
+
+        return;
+    }
+
+    if (anexos_adicionales.length > 0 ) {
+        anexos_adicionales.forEach((item, index) => {
+            for (var key in item) {
+                if (item.hasOwnProperty(key)) {
+                    if (Array.isArray(item[key])) {
+                        item[key].forEach((file, fileIndex) => {
+                            formData.append(`${key}[${index}][${fileIndex}]`, file);
+                        });
+                    } else {
+                        formData.append(`${key}[${index}]`, item[key]);
+                    }
+                }
+            }
+        });
+    }
+
+    $('.enviarFormulario').prop('disabled', true);
+
+    fetch(url, {
+        method: 'POST',
+        headers: heads,
+        body: formData
+    }).then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Error en la solicitud');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const message = data.message;
+        Swal.fire('Éxito!', message, 'success').then(() => {
+            location.reload();
+        });
+    })
+    .catch(error => {
+        Swal.fire('Error', error.message, 'error');
+    }).finally(() => {
+        $('.enviarFormulario').prop('disabled', false);
+    });
+}
+
+
+
+
 //////////  Asuntos especiales /////////////
 
 function guardar_observacion_asunto_especial(accion) {
@@ -7171,4 +8088,13 @@ function crearEntidadMaestra() {
     }).finally(() => {
         $('.revisionDiagnostico').prop('disabled', false);
     });
+}
+
+function solo_numeros(event) {
+    const key = event.key;
+    const allowedKeys = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Enter'];
+
+    if (!/^[0-9]$/.test(key) && !allowedKeys.includes(key)) {
+        event.preventDefault();
+    }
 }

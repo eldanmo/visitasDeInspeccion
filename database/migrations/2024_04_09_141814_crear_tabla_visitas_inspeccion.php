@@ -51,6 +51,7 @@ return new class extends Migration
             $table->string('intendente')->nullable();
             $table->string('ciclo_vida')->nullable();
             $table->string('carpeta_drive')->nullable();
+            $table->string('caracter_visita')->nullable();
             $table->text('archivos')->nullable();
             $table->text('anexos_adicionales_plan_visita')->nullable();
             $table->string('enlace_subsanacion_diagnostico')->nullable();
@@ -65,6 +66,30 @@ return new class extends Migration
             $table->string('usuario_creacion');
             $table->string('ciclo_vida_confirmacion_visita');
             $table->text('usuario_actual');
+            $table->string('FUID')->nullable();
+            $table->string('tabla_retencion_documental')->nullable();
+
+            $table->string('radicado_salida_comunicado_visita_empresa_solidaria')->nullable();
+            $table->date('fecha_radicado_salida_comunicado_visita_empresa_solidaria')->nullable();
+            $table->string('radicado_salida_comunicado_visita_revisoria_fiscal')->nullable();
+            $table->date('fecha_radicado_salida_comunicado_visita_revisoria_fiscal')->nullable();
+            $table->string('radicado_entrada_respuesta_entidad_comunicado_visita')->nullable();
+            $table->date('fecha_radicado_entrada_respuesta_entidad_comunicado_visita')->nullable();
+
+            $table->string('radicado_oficio_traslado_empresa_solidaria')->nullable();
+            $table->date('fecha_radicado_oficio_traslado_empresa_solidaria')->nullable();
+            $table->string('radicado_oficio_traslado_revisoria_fiscal')->nullable();
+            $table->date('fecha_radicado_oficio_traslado_revisoria_fiscal')->nullable();
+
+            $table->string('radicado_entrada_pronunciacion_empresa_solidaria')->nullable();
+            $table->date('fecha_radicado_entrada_pronunciacion_empresa_solidaria')->nullable();
+            $table->string('radicado_entrada_pronunciacion_revisoria_fiscal')->nullable();
+            $table->date('fecha_radicado_entrada_pronunciacion_revisoria_fiscal')->nullable();
+
+            $table->string('ciclo_informe_final_hallazgos')->nullable();
+            $table->string('radicado_memorando_traslado')->nullable();
+            $table->date('fecha_radicado_memorando_traslado')->nullable();
+
             $table->timestamps();
         });
     }

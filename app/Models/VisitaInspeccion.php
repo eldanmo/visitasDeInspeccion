@@ -35,6 +35,7 @@ class VisitaInspeccion extends Model
         'usuario_diagnostico',
         'fecha_inicio_plan_visita',
         'fecha_fin_plan_visita',
+        'caracter_visita',
         'fecha_inicio_preparacion_informacion_organizacion_solidaria',
         'fecha_fin_preparacion_informacion_organizacion_solidaria',
         'usuario_preparacion_informacion_organizacion_solidaria',
@@ -61,6 +62,29 @@ class VisitaInspeccion extends Model
         'anexos_confirmacion_plan_visita',
         'anexos_adicionales_abrir_visita',
         'ciclo_vida_confirmacion_visita',
+
+        'radicado_salida_comunicado_visita_empresa_solidaria',
+        'fecha_radicado_salida_comunicado_visita_empresa_solidaria',
+        'radicado_salida_comunicado_visita_revisoria_fiscal',
+        'fecha_radicado_salida_comunicado_visita_revisoria_fiscal',
+
+        'radicado_entrada_respuesta_entidad_comunicado_visita',
+        'fecha_radicado_entrada_respuesta_entidad_comunicado_visita',
+
+        'radicado_oficio_traslado_empresa_solidaria',
+        'fecha_radicado_oficio_traslado_empresa_solidaria',
+        'radicado_oficio_traslado_revisoria_fiscal',
+        'fecha_radicado_oficio_traslado_revisoria_fiscal',
+
+        'radicado_entrada_pronunciacion_empresa_solidaria',
+        'fecha_radicado_entrada_pronunciacion_empresa_solidaria',
+        'radicado_entrada_pronunciacion_revisoria_fiscal',
+        'fecha_radicado_entrada_pronunciacion_revisoria_fiscal',
+
+        'ciclo_informe_final_hallazgos',
+        'radicado_memorando_traslado',
+        'fecha_radicado_memorando_traslado',
+
     ];
 
     public function entidad()
@@ -109,5 +133,14 @@ class VisitaInspeccion extends Model
         return $this->hasMAny(AnexoRegistro::class, 'id_tipo_anexo', 'id')
                             ->where('proceso', 'VISITA DE INSPECCIÓN')
                             ->where('estado', 'ACTIVO');
+    }
+
+    public function diasActuales()
+    {
+        return $this->hasOne(ConteoDias::class, 'id_informe', 'id')
+                    ->where('etapa', '!=', 'CANCELADO')
+                    ->where('etapa', '!=', 'FINALIZADO')
+                    ->where('etapa', '!=', 'SUSPENDIDO')
+                    ->latest();
     }
 }

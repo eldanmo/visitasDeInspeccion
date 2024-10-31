@@ -114,6 +114,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/pdfDownload', [DiagnosticoController::class, 'pdfDownload'])->name('pdfDownload');
     Route::post('/citacion_comite_interno_evaluador', [DiagnosticoController::class, 'citacion_comite_interno_evaluador'])->name('citacion_comite_interno_evaluador');
     Route::post('/guardar_documento_adicional_visita_inspeccion', [DiagnosticoController::class, 'guardar_documento_adicional_visita_inspeccion'])->name('guardar_documento_adicional_visita_inspeccion');
+    Route::post('/registrar_comunicado_previo_visita', [DiagnosticoController::class, 'registrar_comunicado_previo_visita'])->name('registrar_comunicado_previo_visita');
+    Route::post('/registrar_oficio_traslado', [DiagnosticoController::class, 'registrar_oficio_traslado'])->name('registrar_oficio_traslado');
     
     Route::get('/estadisticas', [EstadisticaController::class, 'estadisticas'])->name('estadisticas');
     Route::post('/estadisticas_datos', [EstadisticaController::class, 'estadisticas_datos'])->name('estadisticas_datos');

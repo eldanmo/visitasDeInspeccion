@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Auth;
 
 use Illuminate\Http\Request;
 use App\Models\Entidad;  
+use App\Models\Lugares;
 use App\Models\VisitaInspeccion;  
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Validator;
@@ -23,7 +24,8 @@ class EntidadController extends Controller
 
     public function crear()
     {
-        return view('crear_entidad');
+        $lugares = Lugares::get();
+        return view('crear_entidad',['lugares'=>$lugares]);
     }
 
     /**
@@ -240,7 +242,9 @@ class EntidadController extends Controller
     public function editar($id)
     {
         $entidad = Entidad::findOrFail($id);
-        return view('crear_entidad')->with('entidad', $entidad);
+        $lugares = Lugares::get();
+        return view('crear_entidad',['entidad'=> $entidad,'lugares'=>$lugares]);
+
     }
 
     /**

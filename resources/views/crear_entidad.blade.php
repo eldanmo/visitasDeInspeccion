@@ -72,17 +72,15 @@
 
             <hr>
 
-
-
             <div class="row">
                 <div class="col-12 col-sm-4 mt-3 codigo_entidad">
                     <label for="codigo_entidad" class="form-label">Código (*)</label>
                     <input type="hidden" class="form-control required" autocomplete="off" id="id" value="{{ $entidad->id ?? '' }}">
-                    <input type="number" class="form-control required" autocomplete="off" required id="codigo_entidad" min="0" value="{{ $entidad->codigo_entidad ?? '' }}">
+                    <input type="number" class="form-control required" autocomplete="off" required id="codigo_entidad" min="0" value="{{ $entidad->codigo_entidad ?? '' }}" min="1" step="1" onkeydown="solo_numeros(event)">
                 </div>
                 <div class="col-12 col-sm-4 mt-3 nit">
-                    <label for="nit" class="form-label">Nit (*)</label>
-                    <input type="number" class="form-control required" autocomplete="off" required id="nit" min="0" value="{{ $entidad->nit ?? '' }}">
+                    <label for="nit" class="form-label">Nit con digito de verificación (*)</label>
+                    <input type="number" class="form-control required" autocomplete="off" required id="nit" min="0" value="{{ $entidad->nit ?? '' }}" min="1" step="1" onkeydown="solo_numeros(event)">
                 </div>
                 <div class="col-12 col-sm-4 mt-3">
                     <label for="razon_social" class="form-label">Razón social (*)</label>
@@ -150,6 +148,7 @@
                         <option value="III" {{ old('grupo_niif', $entidad->grupo_niif ?? '') == 'III' ? 'selected' : '' }}>III</option>
                     </select>
                 </div>
+                
                 <div class="col-12 col-sm-4 mt-3 incluye_sarlaft">
                     <label for="incluye_sarlaft" class="form-label">La visita incluye revisión sarlaft</label>
                     <select class="form-control required" autocomplete="off" name="nivel_supervision" id="incluye_sarlaft" required>
@@ -160,7 +159,12 @@
                 </div>
                 <div class="col-12 col-sm-4 mt-3 departamento">
                     <label for="departamento" class="form-label">Departamento (*)</label>
-                    <input type="text" class="form-control required" autocomplete="off" required id="departamento" value="{{ $entidad->departamento ?? '' }}">
+                    <select class="form-control required" autocomplete="off" name="departamento" id="departamento" required>
+                        <option value="" {{ old('departamento') == '' ? 'selected' : '' }}>--Seleccione--</option>
+                        @foreach($lugares as $lugar)
+                            <option value="{{$lugar->departamento}}" {{ old('departamento', $entidad->departamento ?? '') == $lugar->departamento ? 'selected' : '' }}>{{$lugar->departamento}}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="col-12 col-sm-4 mt-3 ciudad_municipio">
                     <label for="ciudad_municipio" class="form-label">Ciudad / Municipio (*)</label>
@@ -173,11 +177,11 @@
                 
                 <div class="col-12 col-sm-4 mt-3 numero_asociados">
                     <label for="numero_asociados" class="form-label">Número de asociados (*)</label>
-                    <input type="number" class="form-control required" autocomplete="off" required id="numero_asociados" min="0" value="{{ $entidad->numero_asociados ?? '' }}">
+                    <input type="number" class="form-control required" autocomplete="off" required id="numero_asociados" min="0" value="{{ $entidad->numero_asociados ?? '' }}" min="1" step="1" onkeydown="solo_numeros(event)">
                 </div>
                 <div class="col-12 col-sm-4 mt-3 numero_asociados">
                     <label for="numero_asociados" class="form-label">Número de empleados</label>
-                    <input type="number" class="form-control required" autocomplete="off" required id="numero_empleados" min="0" value="{{ $entidad->numero_empleados ?? '' }}">
+                    <input type="number" class="form-control required" autocomplete="off" required id="numero_empleados" min="0" value="{{ $entidad->numero_empleados ?? '' }}" min="1" step="1" onkeydown="solo_numeros(event)">
                 </div>
                 <div class="col-12 col-sm-4 mt-3 total_activos">
                     <label for="total_activos" class="form-label">Total de activos (*)</label>

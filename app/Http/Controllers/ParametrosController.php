@@ -14,9 +14,21 @@ class ParametrosController extends Controller
      * @return \Illuminate\View\View Devuelve la vista 'consultar_parametros'.
     */
 
-    public function consultar()
+    public function consultar(Request $request)
     {
-        return view('consultar_parametros', ['parametros' => Parametro::paginate(10)]);
+        $parametros = Parametro::query();
+
+        if ($request->filled('etapa')) {
+            $parametros->where('estado', 'like', '%' . $request->etapa . '%');
+        }
+
+        if ($request->filled('proceso')) {
+            $parametros->where('proceso', 'like', '%' . $request->proceso . '%');
+        }
+
+        $parametros = $parametros->paginate(10);
+
+        return view('consultar_parametros', ['parametros' => $parametros]);
     }
 
     /**

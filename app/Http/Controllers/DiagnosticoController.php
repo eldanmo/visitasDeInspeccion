@@ -108,35 +108,14 @@ class DiagnosticoController extends Controller
             $visita_inspeccion->numero_informe = $visita_inspeccion->id . $anio_actual;
             $visita_inspeccion->save();
 
-            $this->create_sheets($visita_inspeccion->id, 
-                                $validatedData['nit'],
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
+            $create_sheets = $this->create_sheets($visita_inspeccion->id, 
                                 $visita_inspeccion->id . $anio_actual,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL
+                                $validatedData['nit'],
                             );
+
+            if($create_sheets['status'] === 'error'){
+                return response()->json(['error' => $create_sheets['message']], 500);
+            }
 
             $this->historialInformes($visita_inspeccion->id, 'CREACIÓN', 'DIAGNÓSTICO INTENDENCIA', 'VIGENTE', date('Y-m-d'), '', 'VIGENTE', '', $validatedData['fecha_inicio_diagnostico'], NULL, '', $validatedData['fecha_fin_diagnostico']);
             $this->conteoDias($visita_inspeccion->id, 'DIAGNÓSTICO INTENDENCIA', $validatedData['fecha_inicio_diagnostico'], NULL);
@@ -235,6 +214,8 @@ class DiagnosticoController extends Controller
         $historial_informe->usuario_creacion= $usuarioCreacionId;
         $historial_informe->proceso= $proceso;
         $historial_informe->save();
+
+        $this->create_history_sheets($historial_informe->id, $id_informe.date('Y'), Auth::user()->name, $accion, $etapa, $etapa.$historial_informe->id, date('d/m/Y'), $observaciones);
 
         Log::info('Entrando a historialInformes', [
             'id_informe' => $id_informe,
@@ -468,6 +449,7 @@ class DiagnosticoController extends Controller
         $usuarios = User::get();
         $informes = $informes->with('entidad')
                             ->with('conteoDias')
+                            ->with('diasActuales')
                             ->orderby('id', 'desc')
                             ->paginate(10);
         $parametros = Parametro::get();
@@ -503,11 +485,14 @@ class DiagnosticoController extends Controller
                                     ->with('solicitudDiasAdicionales.historial.usuario')
                                     ->with('solicitudDiasAdicionales.anexosDiasAdicionales')
                                     ->with('anexos')
+                                    ->with('etapaProceso')
                                     ->first();
         $usuarios = User::orderby('name', 'ASC')->get();
+        $parametros = Parametro::where('proceso', 'VISITAS_INSPECCION')->where('orden_etapa', '>=', 1)->orderby('orden_etapa', 'ASC')->get();
         return view('detalle_informe', [
             'usuariosTotales' => $usuarios,
             'informe' => $informe,
+            'parametros' => $parametros,
         ]);
     }
 
@@ -850,8 +835,6 @@ class DiagnosticoController extends Controller
                 'observacion' => '',
             ]);
 
-            dd();
-
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
                                                     ->with('etapaProceso')
                                                     ->first();
@@ -861,7 +844,7 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {  
 
-                $accessToken = auth()->user()->google_token;
+                $accessToken = decrypt(auth()->user()->google_token);
                 $folderId = "";
 
                 $folderData = [
@@ -871,7 +854,6 @@ class DiagnosticoController extends Controller
                 ];
 
                 $response = Http::withToken($accessToken)->post('https://www.googleapis.com/drive/v3/files', $folderData);
-
 
                 if ($response->successful()) {
                     $folder = $response->json();
@@ -914,7 +896,13 @@ class DiagnosticoController extends Controller
                     }
             
                 } else {
+
+                    if (strpos($response->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                        auth()->logout();
+                        return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                    }
                     return response()->json(['error' => $response->json()['error']['message']], 500);
+
                 }
                 
                 $diasFestivosColombia = DiaNoLaboral::pluck('dia')->toArray();
@@ -992,8 +980,6 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->carpeta_drive = $folderId;
                 $visita_inspeccion->save();
 
-                $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
                 $this->historialInformes($validatedData['id'], 'FINALIZACIÓN DIAGNÓSTICO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observacion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -1062,6 +1048,7 @@ class DiagnosticoController extends Controller
                 $grupo_visita_inspeccion = json_decode($validatedData['grupo_inspeccion'], true);
 
                 $usuarios = [];
+                $nombres_usuarios_grupo = [];
 
                 foreach ($grupo_visita_inspeccion as $index => $persona) {
                     $grupo_visita_inspeccion = new GrupoVisitaInspeccion();
@@ -1070,7 +1057,6 @@ class DiagnosticoController extends Controller
                     $grupo_visita_inspeccion->rol = $persona['rol'];
                     $grupo_visita_inspeccion->estado = 'ACTIVO';
                     $grupo_visita_inspeccion->usuario_creacion = Auth::id();
-                    
 
                     $asunto_email = 'Asignación '. $persona['rol'] . ' visita de inspección ' .$validatedData['numero_informe'];
                     $datos_adicionales = ['numero_informe' => 'Ha sido asignado como la persona con el rol de '. $persona['rol'] . ' para la visita de inspección '. $validatedData['numero_informe'],
@@ -1088,7 +1074,9 @@ class DiagnosticoController extends Controller
                     $usuario = User::where('id', $persona['usuario'])
                                 ->first();
 
-                    $accessToken = auth()->user()->google_token;                       
+                    $nombres_usuarios_grupo[] = $usuario->name;
+
+                    $accessToken = decrypt(auth()->user()->google_token);                       
 
                     $permissionData = [
                         'type' => 'user',
@@ -1100,6 +1088,10 @@ class DiagnosticoController extends Controller
                                     ->post("https://www.googleapis.com/drive/v3/files/{$visita_inspeccion->carpeta_drive}/permissions", $permissionData);
 
                     if (!$responseFolder->successful()) {
+                        if (strpos($responseFolder->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
                         return response()->json(['error' => $responseFolder->json()['error']['message']], 500);
                     }
 
@@ -1109,6 +1101,8 @@ class DiagnosticoController extends Controller
                     $grupo_visita_inspeccion->permiso_carpeta_drive = $permissionId ;
                     $grupo_visita_inspeccion->save();
                 } 
+
+                $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, $nombres_usuarios_grupo[0], $nombres_usuarios_grupo[1], $nombres_usuarios_grupo[2], $nombres_usuarios_grupo[3] ?? NULL, $nombres_usuarios_grupo[4] ?? NULL, $nombres_usuarios_grupo[5] ?? NULL, date('d/m/Y'));
 
                 $usuarios_coordinadores = User::where('profile', 'Coordinador')
                                             ->get();
@@ -1201,6 +1195,12 @@ class DiagnosticoController extends Controller
                 if ($validatedData['resultado_revision'] === 'No') {
                     $proxima_etapa = 'EN REVISIÓN Y SUBSANACIÓN DEL DOCUMENTO DIAGNÓSTICO';
 
+                    $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, Carbon::parse($validatedData['ciclo_devolucion_documento_diagnostico'])->format('d/m/Y'), );
+
+                    if($update_shits['status'] === 'error'){
+                        return response()->json(['error' => $update_shits['message']], 500);
+                    }    
+
                     $asunto_email = 'Revisar informe diágnostico de la visita '.$validatedData['numero_informe'];
                     $datos_adicionales = ['numero_informe' => 'El informe diagnóstico de la visita '. $validatedData['numero_informe'] . ' requiere de su atención',
                                                 'mensaje' => 'El informe diagnóstico de la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
@@ -1220,6 +1220,14 @@ class DiagnosticoController extends Controller
                 }elseif($validatedData['resultado_revision'] === 'Si'){
                     $proxima_etapa = 'ELABORACIÓN DE PLAN DE VISITA';
 
+                    $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, date('d/m/Y') );
+
+                    if($update_shits['status'] === 'error'){
+                        return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                    }
+
                     $asunto_email = 'Elaborar plan de visita '.$validatedData['numero_informe'];
                     $datos_adicionales = ['numero_informe' => 'Se requiere que realice el plan de visita para la vista de inspección número '. $validatedData['numero_informe'],
                                                 'mensaje' => 'Se requiere que realice el plan de visita para la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
@@ -1238,7 +1246,6 @@ class DiagnosticoController extends Controller
                     $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
                     $this->historialInformes($validatedData['id'], 'APROBACIÓN INFORME DIAGNÓSTICO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $observaciones, $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
-
                 }
 
                 $catidad_dias_etapa = Parametro::select('dias')
@@ -1336,8 +1343,20 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, date('d/m/Y') );
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
                 }
 
                 $proxima_etapa = 'ELABORACIÓN DE PLAN DE VISITA';
@@ -1378,7 +1397,6 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->enlace_subsanacion_diagnostico = $validatedData['ciclo_vida_diagnostico'];
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 $visita_inspeccion->save();
-
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -1430,6 +1448,9 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'observacion' => '',
+                'como_efectua_visita' => '',
+                'caracter_visita' => '',
+                'ciclo_vida' => '',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -1454,7 +1475,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -1475,6 +1500,12 @@ class DiagnosticoController extends Controller
                     if ($response_files['status'] == 'error') {
                         return response()->json(['error' => $response_files['message']], 500);
                     }
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, $validatedData['ciclo_vida'], NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y') , $validatedData['como_efectua_visita'], $validatedData['caracter_visita'], $validatedData['tipo_visita']);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
                 }
 
                 $proxima_etapa = 'CONFIRMAR PLAN DE VISITA COORDINACIÓN';
@@ -1510,6 +1541,9 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->tipo_visita = $validatedData['tipo_visita'];
+                $visita_inspeccion->como_efectua_visita = $validatedData['como_efectua_visita'];
+                $visita_inspeccion->caracter_visita = $validatedData['caracter_visita'];
+                $visita_inspeccion->ciclo_vida = $validatedData['ciclo_vida'];
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 $visita_inspeccion->save();
 
@@ -1844,6 +1878,12 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'));
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                }
+
                 $proxima_etapa = 'EN ESPERA DE INFORMACIÓN ADICIONAL POR PARTE DE LA ENTIDAD SOLIDARIA';
 
                 $catidad_dias_etapa = Parametro::select('dias')
@@ -1957,7 +1997,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -2093,7 +2137,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -2242,7 +2290,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -2371,6 +2423,12 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'));
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
+
                 $proxima_etapa = 'EN APERTURA DE VISITA DE INSPECCIÓN';
 
                 $catidad_dias_etapa = Parametro::select('dias')
@@ -2485,7 +2543,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -2523,6 +2585,12 @@ class DiagnosticoController extends Controller
                     if ($response_files['status'] == 'error') {
                         return response()->json(['error' => $response_files['message']], 500);
                     }
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,  NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'FUE CARGADA', date('d/m/Y'));
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
                 }
 
                 $grupo_visita_inspeccion = json_decode($validatedData['grupo_inspeccion'], true);
@@ -2565,7 +2633,7 @@ class DiagnosticoController extends Controller
                         $usuario = User::where('id', $persona['usuario'])
                                 ->first();
 
-                        $accessToken = auth()->user()->google_token;                       
+                        $accessToken = decrypt(auth()->user()->google_token);                       
 
                         $permissionData = [
                             'type' => 'user',
@@ -2616,7 +2684,6 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
-                //$visita_inspeccion->anexos_adicionales_abrir_visita = json_encode($anexos_adicionales);
                 $visita_inspeccion->save();
 
                 $this->historialInformes($validatedData['id'], 'APERTURA DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
@@ -2678,11 +2745,19 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
                 }else {
 
+                
+
                 $proxima_etapa = 'EN DESARROLLO DE VISITA DE INSPECCIÓN';
 
                 $catidad_dias_etapa = Parametro::select('dias')
                         ->where('estado', $proxima_etapa)
                         ->first();
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'), $catidad_dias_etapa->dias);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                }
 
                 if ($catidad_dias_etapa->dias > 0) {
                     $estado_etapa = 'VIGENTE';
@@ -2784,8 +2859,37 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'observaciones' => 'nullable|string',
-                'enlace_documento_cierre_visita.*' => 'required|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
-                'nombre_documento_cierre_visita.*' => 'required|nullable|string',
+
+                'nombre_documento_cierre_visita.*' => 'nullable|string',
+                'enlace_documento_cierre_visita.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-016_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-016_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-020_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-020_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-023_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-023_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-024_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-024_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-025_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-025_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-026_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-026_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-027_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-027_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-028_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-028_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+
+                'nombre_documento_cierre_visita_FT-SUPE-029_noobligat.*' => 'nullable|string',
+                'enlace_documento_cierre_visita_FT-SUPE-029_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -2796,6 +2900,16 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $FT_SUPE_016 = 'NO';
+                $FT_SUPE_020 = 'NO';
+                $FT_SUPE_023 = 'NO';
+                $FT_SUPE_024 = 'NO';
+                $FT_SUPE_025 = 'NO';
+                $FT_SUPE_026 = 'NO';
+                $FT_SUPE_027 = 'NO';
+                $FT_SUPE_028 = 'NO';
+                $FT_SUPE_029 = 'NO';
 
                 if ($request->file('enlace_documento_cierre_visita')) {
 
@@ -2812,8 +2926,249 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-016_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-016_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-016_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_016 = 'SI';
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-020_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-020_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-020_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_020 = 'SI';
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-023_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-023_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-023_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_023 = 'SI';
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-024_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-024_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-024_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_024 = 'SI';
+
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-025_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-025_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-025_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_025 = 'SI';
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-026_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-026_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-026_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_026 = 'SI';
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-027_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-027_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-027_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_027 = 'SI';
+
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-028_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-028_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-028_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_028 = 'SI';
+
+                }
+
+                if ($request->file('enlace_documento_cierre_visita_FT-SUPE-029_noobligat')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('enlace_documento_cierre_visita_FT-SUPE-029_noobligat'), 
+                        $request->input('nombre_documento_cierre_visita_FT-SUPE-029_noobligat'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'CIERRE_VISITA_INSPECCION',
+                        '',
+                        'CIERRE_VISITA_INSPECCION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+
+                    $FT_SUPE_029 = 'SI';
+
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'), NULL, NULL, NULL, $FT_SUPE_020, $FT_SUPE_016,
+                    $FT_SUPE_024, $FT_SUPE_026, $FT_SUPE_028, $FT_SUPE_029, $FT_SUPE_027, $FT_SUPE_025, $FT_SUPE_023);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
                 }
 
                 $proxima_etapa = 'EN REGISTRO DE HALLAZGOS DE LA VISITA DE INSPECCIÓN';
@@ -2904,7 +3259,7 @@ class DiagnosticoController extends Controller
     */
 
     public function cargarArchivosGoogle($uploadedFiles, $fileNames, $folderId, $id_entidad, $proceso, $sub_proceso, $id_sub_proceso, $tipo_anexo, $id_tipo_anexo ) {
-        $accessToken = auth()->user()->google_token;
+        $accessToken = decrypt(auth()->user()->google_token);
         $anexos_adicionales = [];
     
         foreach ($uploadedFiles as $index => $newFile) {
@@ -3063,7 +3418,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -3236,6 +3595,13 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,  NULL, NULL, NULL, NULL, NULL,
+                                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'SI', $validatedData['dias'] );
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                }
+
                 $usuarioCreacionId = Auth::id();
 
                 $dias_adicionales = SolicitudDiaAdicional::where('id', $validatedData['id_solicitud'])
@@ -3395,7 +3761,11 @@ class DiagnosticoController extends Controller
                         );
     
                         if ($response_files['status'] == 'error') {
-                            return response()->json(['error' => $response_files['message']], 500);
+                            if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
+                            return response()->json(['error' => $response_files->json()['error']['message']], 500);
                         }
                     }
                     
@@ -3509,7 +3879,7 @@ class DiagnosticoController extends Controller
     */
 
     public function cargar_documento_individual($enlace_plan_visita, $folderId, $id_entidad, $proceso, $sub_proceso, $id_sub_proceso, $tipo_anexo, $id_tipo_anexo) {
-        $accessToken = auth()->user()->google_token;
+        $accessToken = decrypt(auth()->user()->google_token);
         $uniqueCode = Str::random(8);
         $fecha = date('Ymd');
         $nameFormat = str_replace(' ', '_', $enlace_plan_visita->getClientOriginalName());
@@ -3638,7 +4008,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -3776,7 +4150,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -3917,7 +4295,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4188,7 +4570,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4329,7 +4715,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4466,7 +4856,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4601,7 +4995,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4735,7 +5133,7 @@ class DiagnosticoController extends Controller
                     $persona->save();
                 }
 
-                $accessToken = auth()->user()->google_token;
+                $accessToken = decrypt(auth()->user()->google_token);
                 $uniqueCode = Str::random(8);
                 $fecha = date('Ymd');
                 $nameFormat = str_replace(' ', '_', $request->file('informe_final_firmado.pdf'));
@@ -4933,7 +5331,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -4972,7 +5374,7 @@ class DiagnosticoController extends Controller
                     $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE QUE SI ES NECESARIA LA INTERVENCIÓN INMEDIATA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones_intervencion_inmediata'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
                     
 
-                    $accessToken = auth()->user()->google_token;
+                    $accessToken = decrypt(auth()->user()->google_token);
                     $folderId = "";
 
                     $folderData = [
@@ -5152,8 +5554,20 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y'), $validatedData['ciclo_informe_traslado']);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
                 }
 
                 $usuarios = [];
@@ -5291,7 +5705,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -5384,10 +5802,14 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'confirmacion_pronunciacion_entidad' => 'required',
-                'radicado_entrada_pronunciacion' => 'required_if:confirmacion_pronunciacion_entidad,Si',
                 'observaciones' => 'nullable|string',
                 'anexo_registrar_pronunciamiento.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'nombre_anexo_registrar_pronunciamiento.*' => 'nullable|string',
+
+                'radicado_entrada_pronunciacion_empresa_solidaria' => 'nullable|string',
+                'fecha_radicado_entrada_pronunciacion_empresa_solidaria' => 'nullable|string',
+                'radicado_entrada_pronunciacion_revisoria_fiscal' => 'nullable|string',
+                'fecha_radicado_entrada_pronunciacion_revisoria_fiscal' => 'nullable|string',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -5398,6 +5820,26 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $fecha_radicado_entrada_pronunciacion_empresa_solidaria = NULL;
+                $fecha_radicado_entrada_pronunciacion_revisoria_fiscal = NULL;
+
+                if($validatedData['fecha_radicado_entrada_pronunciacion_empresa_solidaria'] !== NULL){
+                    $fecha_radicado_entrada_pronunciacion_empresa_solidaria = date('d/m/Y', strtotime($validatedData['fecha_radicado_entrada_pronunciacion_empresa_solidaria']));
+                }
+
+                if($validatedData['fecha_radicado_entrada_pronunciacion_revisoria_fiscal'] !== NULL){
+                    $fecha_radicado_entrada_pronunciacion_revisoria_fiscal = date('d/m/Y', strtotime($validatedData['fecha_radicado_entrada_pronunciacion_revisoria_fiscal']));
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $fecha_radicado_entrada_pronunciacion_empresa_solidaria,
+                    $validatedData['radicado_entrada_pronunciacion_empresa_solidaria'], $fecha_radicado_entrada_pronunciacion_revisoria_fiscal, $validatedData['radicado_entrada_pronunciacion_revisoria_fiscal']);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
 
                 if ($request->file('anexo_registrar_pronunciamiento')) {
 
@@ -5414,7 +5856,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -5424,7 +5870,7 @@ class DiagnosticoController extends Controller
                     $asunto_email = 'Valorar la información recibida de parte de la organización de la economía solidaria supervisada de la visita '.$validatedData['numero_informe'];
                     $datos_adicionales = ['numero_informe' => 'Valorar la información recibida de parte de la organización de la economía solidaria supervisada de la visita '. $validatedData['numero_informe'],
                                                     'mensaje' => 'Valorar la información recibida de parte de la organización de la economía solidaria supervisada de la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                    $validatedData['nit']. ' que fue registrada con el radicado de entrada ' . $validatedData['radicado_entrada_pronunciacion']];
+                    $validatedData['nit']];
 
                     $usuarios_designados = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
                                                 ->where('estado', 'ACTIVO')
@@ -5440,9 +5886,14 @@ class DiagnosticoController extends Controller
                             $this->enviar_correos($usuario_designado->id_usuario, $asunto_email, $datos_adicionales); 
                     }  
 
-                    $this->historialInformes($validatedData['id'], 'REGISTRO DE PRONUNCIAMIENTO DE ENTIDAD', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], $validatedData['radicado_entrada_pronunciacion'], NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'REGISTRO DE PRONUNCIAMIENTO DE ENTIDAD', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], NULL, NULL, NULL, '', NULL);
 
                     $successMessage = 'Se registro el pronunciamiento de la entidad solidaria correctamente';
+
+                    $visita_inspeccion->radicado_entrada_pronunciacion_empresa_solidaria = $validatedData['radicado_entrada_pronunciacion_empresa_solidaria'];
+                    $visita_inspeccion->fecha_radicado_entrada_pronunciacion_empresa_solidaria = $validatedData['fecha_radicado_entrada_pronunciacion_empresa_solidaria'];
+                    $visita_inspeccion->radicado_entrada_pronunciacion_revisoria_fiscal = $validatedData['radicado_entrada_pronunciacion_revisoria_fiscal'];
+                    $visita_inspeccion->fecha_radicado_entrada_pronunciacion_revisoria_fiscal = $validatedData['fecha_radicado_entrada_pronunciacion_revisoria_fiscal'];
 
                 }else {
                     $proxima_etapa = 'EN TRASLADO DEL RESULTADO DE EVALUACIÓN DE LA RESPUESTA';
@@ -5561,7 +6012,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -5672,6 +6127,8 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'ciclo_informe_final_hallazgos' => 'required',
+                'radicado_memorando_traslado' => 'required',
+                'fecha_radicado_memorando_traslado' => 'required',
                 'observaciones' => 'nullable|string',
                 'anexo_traslado_resultado_respuesta.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'nombre_anexo_traslado_resultado_respuesta.*' => 'nullable|string',
@@ -5685,6 +6142,15 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $validatedData['radicado_memorando_traslado'],
+                    date('d/m/Y', strtotime($validatedData['fecha_radicado_memorando_traslado'])) );
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
 
                 if ($request->file('anexo_traslado_resultado_respuesta')) {
 
@@ -5701,11 +6167,14 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
-                //$proxima_etapa = 'EN PROPOSICIÓN DE ACTUACIÓN ADMINISTRATIVA';
                 $proxima_etapa = 'EN CITACIÓN A COMITE INTERNO EVALUADOR DE INSPECCIÓN';
 
                 $catidad_dias_etapa = Parametro::select('dias')
@@ -5739,6 +6208,9 @@ class DiagnosticoController extends Controller
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
+                $visita_inspeccion->ciclo_informe_final_hallazgos = $validatedData['ciclo_informe_final_hallazgos'];
+                $visita_inspeccion->radicado_memorando_traslado = $validatedData['radicado_memorando_traslado'];
+                $visita_inspeccion->fecha_radicado_memorando_traslado = $validatedData['fecha_radicado_memorando_traslado'];
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 $visita_inspeccion->save();
 
@@ -5815,7 +6287,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -5927,7 +6403,7 @@ class DiagnosticoController extends Controller
                                                  ->with('etapaProceso')
                                                  ->first();
 
-            $accessToken = auth()->user()->google_token;
+            $accessToken = decrypt(auth()->user()->google_token);
             $folderId = $visita_inspeccion->carpeta_drive;
     
             if ($visita_inspeccion->etapa !== $validatedData['etapa']) {
@@ -5993,7 +6469,7 @@ class DiagnosticoController extends Controller
                                 }
 
                             }else{
-                                $accessToken = auth()->user()->google_token;                       
+                                $accessToken = decrypt(auth()->user()->google_token);                       
 
                                 $permissionData = [
                                     'type' => 'user',
@@ -6040,7 +6516,7 @@ class DiagnosticoController extends Controller
                             $grupo_visita_inspeccion->usuario_creacion = Auth::id();
                            
 
-                            $accessToken = auth()->user()->google_token;                       
+                            $accessToken = decrypt(auth()->user()->google_token);                       
 
                             $permissionData = [
                                 'type' => 'user',
@@ -6187,6 +6663,14 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'SI', date('d/m/Y'));
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
+
                 if ($request->file('enlace_documento')) {
 
                     $response_files = $this->cargarArchivosGoogle(
@@ -6202,7 +6686,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -6411,6 +6899,10 @@ class DiagnosticoController extends Controller
             $visita_inspeccion->save();
 
             $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
+
+            $this->historialInformes($validatedData['id'], 'DESCARGA DEL TABLERO DE CONTROL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), NULL, $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+            $this->historialInformes($validatedData['id'], 'FINALIZACIÓNN DE LA VISITA DE INSPECCIÓN', 'FINALIZADO', 'FINALIZADO', date('Y-m-d'), NULL, 'FINALIZADO', '', NULL, NULL, '', NULL);
+
         }
 
         return response()->download($outputPath, 'tablero.xlsx', [], 'inline');
@@ -6986,12 +7478,16 @@ class DiagnosticoController extends Controller
                     $buscar = $validatedData['id_archivo'];
 
                     if( strpos($ruta, $buscar) ){
-                        $accessToken = auth()->user()->google_token;
+                        $accessToken = decrypt(auth()->user()->google_token);
 
                         $response = Http::withToken($accessToken)
                                 ->delete("https://www.googleapis.com/drive/v3/files/{$validatedData['id_archivo']}");
 
                         if (!$response->successful()) {
+                            if (strpos($response->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                                auth()->logout();
+                                return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                            }
                             return response()->json(['error' => $response->json()['error']['message']], 500);
                         }else{
                             
@@ -7068,7 +7564,7 @@ class DiagnosticoController extends Controller
                                                  ->with('entidad')
                                                  ->first();
 
-            $accessToken = auth()->user()->google_token;
+            $accessToken = decrypt(auth()->user()->google_token);
 
             $response = Http::withToken($accessToken)
                             ->delete("https://www.googleapis.com/drive/v3/files/{$validatedData['id_archivo']}");
@@ -7155,6 +7651,9 @@ class DiagnosticoController extends Controller
                 'nit' => 'required',
                 'observacion' => 'nullable|string',
                 'tipo_visita_modificada' => 'required',
+                'ciclo_vida_modificada' => 'required',
+                'como_efectua_visita_modificada' => 'required',
+                'caracter_visita_modificada' => 'required',
                 'enlace_plan_visita' => 'sometimes|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'anexo_plan_visita_modificado.*' => 'sometimes|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'nombre_anexo_plan_visita_modificado.*' => 'sometimes|string',  
@@ -7176,7 +7675,7 @@ class DiagnosticoController extends Controller
                                                 ->where('estado', 'ACTIVO')
                                                 ->first();
 
-                    $accessToken = auth()->user()->google_token;
+                    $accessToken = decrypt(auth()->user()->google_token);
 
                     $enlace = $plan_actual->ruta;
 
@@ -7187,6 +7686,10 @@ class DiagnosticoController extends Controller
 
 
                     if (!$response->successful()) {
+                        if (strpos($response->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
                         return response()->json(['error' => $response->json()['error']['message']], 500);
                     }else{                                                                                                            
                         $plan_actual->estado = 'ELIMINADO';
@@ -7228,114 +7731,11 @@ class DiagnosticoController extends Controller
                     }
                 }
 
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, $validatedData['ciclo_vida_modificada'], NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, date('d/m/Y') , $validatedData['como_efectua_visita_modificada'], $validatedData['caracter_visita_modificada'], $validatedData['tipo_visita_modificada']);
 
-
-
-                /*$banderaAnexos = false;
-                $banderaPlanDeVisita = false;
-                $anexos_adicionales_plan_visita = [];
-                $folderId = $visita_inspeccion->carpeta_drive;
-                $accessToken = auth()->user()->google_token;
-
-                
-
-                if ($request->hasFile('anexo_plan_visita_modificado')) {
-                    $uploadedFiles = $request->file('anexo_plan_visita_modificado');
-                    $fileNames = $request->input('nombre_anexo_plan_visita_modificado');
-                    $banderaAnexos = true;
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
                 }
-
-                if ($request->hasFile('enlace_plan_visita')) {
-                    $banderaPlanDeVisita = true;
-                    $observacion_enlace_plan_visita = ', el plan se encuentra en el enlace '. $validatedData['enlace_plan_visita'];
-                }
-
-                if($banderaPlanDeVisita){
-    
-                    $uniqueCode = Str::random(8);
-                    $fecha = date('Ymd');
-                    $nameFormat = str_replace(' ', '_', $validatedData['enlace_plan_visita']->getClientOriginalName());
-    
-                    $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
-    
-                    $filePath = $request->file('enlace_plan_visita')->getRealPath();
-                    $fileName = $newFileName;
-    
-                    $metadata = [
-                        'name' =>  $fileName,
-                        'parents' => [$folderId],
-                    ];
-    
-                    $response = Http::withToken($accessToken)
-                            ->attach(
-                                'data',
-                                json_encode($metadata),
-                                'metadata.json'
-                            )
-                            ->attach(
-                                'file',
-                                file_get_contents($filePath),
-                                $fileName
-                            )
-                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
-    
-                    if ($response->successful()) {
-                        $file = $response->json();
-                        $fileId = $file['id'];
-                        $fileUrl = 'https://drive.google.com/file/d/' . $fileId . '/view';
-                    } else {
-                        return response()->json(['error' => $response->json()['error']['message']], 500);
-                    }
-
-                    $visita_inspeccion->plan_visita = $fileUrl;
-                }
-
-                if ($banderaAnexos) {
-                    $anexos_adicionales_plan_visita = json_decode($visita_inspeccion->anexos_adicionales_plan_visita);
-                    foreach ($uploadedFiles as $index =>$newFile) {
-
-                        $uniqueCode = Str::random(8);
-                        $fecha = date('Ymd');
-
-                        if($fileNames[$index]){
-                            $nameFormat = str_replace(' ', '_', $fileNames[$index]);
-                        }else{
-                            $nameFormat = str_replace(' ', '_', $newFile->getClientOriginalName());
-                        }
-    
-                        $newFileName = "{$fecha}_{$uniqueCode}_{$nameFormat}";
-
-                        $metadata = [
-                            'name' =>  $newFileName,
-                            'parents' => [$folderId],
-                        ];
-                                
-                        $responseAnexos = Http::withToken($accessToken)
-                            ->attach(
-                                'metadata',
-                                json_encode($metadata),
-                                'metadata.json'
-                            )
-                            ->attach(
-                                'file',
-                                file_get_contents($newFile),
-                                $newFileName
-                            )
-                            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
-        
-                            if ($responseAnexos->successful()) {
-                                $file = $responseAnexos->json();
-                                $fileId = $file['id'];
-                                $fileUrlAnexo = 'https://drive.google.com/file/d/' . $fileId . '/view';
-
-                                $anexos_adicionales_plan_visita[] = ["fileName" => $fileNames[$index], "fileUrl" =>  $fileUrlAnexo];
-                        
-                            } else {
-                                return response()->json(['error' => $responseAnexos->json()['error']['message']], 500);
-                            }
-                    }
-                    $visita_inspeccion->anexos_adicionales_plan_visita = json_encode($anexos_adicionales_plan_visita);
-                }*/
 
                 $proxima_etapa = 'CONFIRMAR PLAN DE VISITA COORDINACIÓN';
 
@@ -7369,8 +7769,14 @@ class DiagnosticoController extends Controller
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
-                
+
+                $visita_inspeccion->ciclo_vida = $validatedData['ciclo_vida_modificada'];
+                $visita_inspeccion->como_efectua_visita = $validatedData['como_efectua_visita_modificada'];
                 $visita_inspeccion->tipo_visita = $validatedData['tipo_visita_modificada'];
+                $visita_inspeccion->caracter_visita = $validatedData['caracter_visita_modificada'];
+
+
+
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 
                 $visita_inspeccion->save();
@@ -7495,6 +7901,16 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
+                $date = date('d/m/Y', strtotime($validatedData['fecha_hora_citacion']));
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'SI', $date);
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
+
                 if ($request->file('anexo_citacion_comite_interon')) {
 
                     $response_files = $this->cargarArchivosGoogle(
@@ -7510,11 +7926,13 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
-
-                
 
                 $obserciones = ''; 
 
@@ -7629,7 +8047,11 @@ class DiagnosticoController extends Controller
                     );
 
                     if ($response_files['status'] == 'error') {
-                        return response()->json(['error' => $response_files['message']], 500);
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
                     }
                 }
 
@@ -7691,16 +8113,26 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-    public function create_sheets($a, $b, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, $aa, $ab, $ad, $af, $ah, $ak, $am, $an, $aq, $bc, $bd, $bf, $bg, $bi ) {
-        $accessToken = auth()->user()->google_token;
-        $spreadsheetId = '1WHWLZmTZJ2nwqZCCkoNCRKZe2l7V-UNIEIYHx_WAEP4';
+    public function create_sheets($a, $b, $c) {
+        $accessToken = decrypt(auth()->user()->google_token);
+        $spreadsheetId = env('LIBRO_SHEETS_VISITAS_ASOCIATIVA');
 
-        $range = 'CONSOLIDADO';
+        $range = 'CONSOLIDADO!A:A';
+
+        $response = Http::withToken($accessToken)
+            ->get("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}");
+
+
+        $values = $response->json()['values'] ?? [];
+
+        $lastRow = count($values) + 1;  
+
+        $range = "CONSOLIDADO!A{$lastRow}:C{$lastRow}";
+
 
         $values = [
-            [$a, $b, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, 
-                $aa, $ab, NULL, $ad, NULL, $af, NULL, $ah, NULL, NULL, $ak, NULL, $am, $an, NULL, NULL, $aq, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-                NULL, NULL, $bc, $bd, NULL, $bf, $bg, NULL, $bi
+            [
+                $a, $b, $c
             ],
         ];
     
@@ -7712,7 +8144,7 @@ class DiagnosticoController extends Controller
             ->withHeaders([
                 'Content-Type' => 'application/json',
             ])
-            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=RAW", $body);
+            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=USER_ENTERED", $body);
 
         if ($response->successful()) {
             return [
@@ -7744,9 +8176,12 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-    public function update_sheets($id, $a, $b, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, $aa, $ab, $ad, $af, $ah, $ak, $am, $an, $aq, $bc, $bd, $bf, $bg, $bi) {
-        $accessToken = auth()->user()->google_token;
-        $spreadsheetId = '1WHWLZmTZJ2nwqZCCkoNCRKZe2l7V-UNIEIYHx_WAEP4';
+    public function update_sheets($id, $a = NULL, $b = NULL, $c = NULL, $d = NULL, $q = NULL, $r = NULL, $s = NULL, $t = NULL, $u = NULL, $v = NULL, $w = NULL, $x = NULL, $z = NULL, 
+    $ac = NULL, $ae = NULL, $af = NULL, $ag = NULL, $ah = NULL, $ai = NULL, $aj = NULL, $ak = NULL, $al = NULL, $am = NULL, $an = NULL, $ao = NULL, $ap = NULL, $aq = NULL, $ar = NULL, $as = NULL, $at = NULL, $au = NULL, $av = NULL, $aw = NULL, $ax = NULL, $ay = NULL, $az = NULL,
+    $ba = NULL, $bb = NULL, $bc = NULL, $bd = NULL, $be = NULL, $bf = NULL, $bg = NULL, $bh = NULL, $bi = NULL, $bj = NULL, $bk = NULL, $bl = NULL, $bm = NULL, $bn = NULL, $bo = NULL, $bp = NULL, $bq = NULL, $br = NULL, $bs = NULL, $bt = NULL, $bu = NULL,
+    $bv = NULL,  $bw = NULL, $bx = NULL, $by = NULL,  $bz = NULL, $ca = NULL, $cb = NULL, $ab = NULL) {
+        $accessToken = decrypt(auth()->user()->google_token);
+        $spreadsheetId = env('LIBRO_SHEETS_VISITAS_ASOCIATIVA');
     
         $range = 'CONSOLIDADO!A:A';
     
@@ -7777,12 +8212,13 @@ class DiagnosticoController extends Controller
             ];
         }
     
-        $updateRange = 'CONSOLIDADO!A'.$rowNumber.':BI'.$rowNumber;
+        $updateRange = 'CONSOLIDADO!A'.$rowNumber.':CD'.$rowNumber;
     
         $updateValues = [
-            [$a, $b, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z, 
-                $aa, $ab, NULL, $ad, NULL, $af, NULL, $ah, NULL, NULL, $ak, NULL, $am, $an, NULL, NULL, $aq, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-                NULL, NULL, $bc, $bd, NULL, $bf, $bg, NULL, $bi
+            [
+                $a, $b, $c, $d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $q, $r, $s, $t, $u, $v, $w, $x, NULL, $z,
+                NULL, $ab, $ac, NULL, $ae, $af, $ag, $ah, $ai, $aj, $ak, $al, $am, $an, $ao, $ap, $aq, $ar, $as, $at, $au, $av, $aw, $ax, $ay, $az,
+                $ba, $bb, $bc, $bd, $be, $bf, $bg, $bh, $bi, $bj, $bk, $bl, $bm, $bn, $bo, $bp, $bq, $br, $bs, $bt, $bu, $bv,  $bw, $bx, $by,  $bz, $ca, $cb
             ],
         ];
     
@@ -7794,7 +8230,7 @@ class DiagnosticoController extends Controller
             ->withHeaders([
                 'Content-Type' => 'application/json',
             ])
-            ->put("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$updateRange}?valueInputOption=RAW", $body);
+            ->put("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$updateRange}?valueInputOption=USER_ENTERED", $body);
     
         if ($updateResponse->successful()) {
             return [
@@ -7806,6 +8242,281 @@ class DiagnosticoController extends Controller
                 'status' => 'error',
                 'message' => $updateResponse->json()['error']['message']
             ];
+        }
+    }
+
+    /**
+     * Crear histórico registro google sheets
+     * 
+     * Crea el registro histórico de la visita en la hoja de google sheets
+     *
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function create_history_sheets($a, $b, $c, $d, $e, $f, $g, $h) {
+        $accessToken = decrypt(auth()->user()->google_token);
+        $spreadsheetId = env('LIBRO_SHEETS_VISITAS_ASOCIATIVA');
+
+        $range = 'VAL_OBSERVACIONES';
+
+        $values = [
+            [
+                $a, $b, $c, $d, $e, $f, $g, $h
+            ],
+        ];
+    
+        $body = [
+            'values' => $values
+        ];
+    
+        $response = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->post("https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append?valueInputOption=USER_ENTERED", $body);
+
+        if ($response->successful()) {
+            return [
+                        'status' => 'success',
+                        'message' => 'Datos enviados a la hoja de cálculo exitosamente.'
+            ];
+        } else {
+            if (strpos($response->body(), 'Invalid Credentials') !== false) {
+                auth()->logout();
+                        return [
+                            'status' => 'error',
+                            'message' => 'Sesión cerrada. Por favor, vuelva a iniciar sesión.'
+                        ];
+            }
+            return [
+                'status' => 'error',
+                'message' => $response->json()['error']['message']
+            ];
+        }
+    }
+
+    /**
+     * Registro de los radicados de los comunicados 
+     * 
+     * Se registran los datos de los oficios enviados a las empresas solidarias antes de una visita de inspección
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Carga los archivos al google drive
+     *  - Actualiza los datos en la hoja de sheets
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function registrar_comunicado_previo_visita(Request $request){
+        try {
+
+            $validatedData = $request->validate([
+                'id' => 'required',
+                'etapa' => 'required',
+                'estado' => 'required',
+                'estado_etapa' => 'required',
+                'numero_informe' => 'required',
+                'razon_social' => 'required',
+                'nit' => 'required',
+
+                'observaciones' => 'nullable|string',
+                'radicado_salida_comunicado_visita_empresa_solidaria' => 'required|string',
+                'fecha_radicado_salida_comunicado_visita_empresa_solidaria' => 'required|string',
+                'radicado_salida_comunicado_visita_revisoria_fiscal' => 'required|string',
+                'fecha_radicado_salida_comunicado_visita_revisoria_fiscal' => 'required|string',
+
+                'anexo_oficio_previo_visita.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_oficio_previo_visita.*' => 'nullable|string',
+            ]);
+
+            $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
+                                                    ->with('etapaProceso')
+                                                    ->first();
+
+            if($visita_inspeccion->etapa !== $validatedData['etapa']){
+                $successMessage = 'Estado de la etapa no permitido';
+                return response()->json(['error' => $successMessage], 404);
+            }else {
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $validatedData['radicado_salida_comunicado_visita_empresa_solidaria'], $validatedData['radicado_salida_comunicado_visita_revisoria_fiscal'] );
+                
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                }
+
+                if ($request->file('anexo_oficio_previo_visita')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('anexo_oficio_previo_visita'), 
+                        $request->input('nombre_anexo_oficio_previo_visita'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'ANEXOS_OFICIOS_PREVIO_VISITA',
+                        '',
+                        'ANEXOS_OFICIOS_PREVIO_VISITA',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+                }
+
+                $obserciones = ''; 
+
+                if($validatedData['observaciones'] !== ''){
+                    $obserciones = ' con las siguientes observaciones '.$validatedData['observaciones'];
+                }
+
+                $asunto_email = 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '. $validatedData['numero_informe'],
+                                                    'mensaje' => 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                                        $validatedData['nit'].' '.$obserciones];
+                
+                $this->enviar_correos(Auth::id(), $asunto_email, $datos_adicionales); 
+
+                $this->historialInformes($validatedData['id'], 'REGISTRO DE RADICADOS ENVIADOS PREVIOS A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], NULL, NULL, NULL, '', NULL);
+
+                $successMessage = 'Se registraron los oficios de salida correctamente';
+
+                $visita_inspeccion->radicado_salida_comunicado_visita_empresa_solidaria = $validatedData['radicado_salida_comunicado_visita_empresa_solidaria'];
+                $visita_inspeccion->fecha_radicado_salida_comunicado_visita_empresa_solidaria = $validatedData['fecha_radicado_salida_comunicado_visita_empresa_solidaria'];
+                $visita_inspeccion->radicado_salida_comunicado_visita_revisoria_fiscal = $validatedData['radicado_salida_comunicado_visita_revisoria_fiscal'];
+                $visita_inspeccion->fecha_radicado_salida_comunicado_visita_revisoria_fiscal = $validatedData['fecha_radicado_salida_comunicado_visita_revisoria_fiscal'];
+                $visita_inspeccion->save();
+
+                return response()->json(['message' => $successMessage]);
+            }
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            return response()->json(['error' => $errorMessage], 500);
+        }
+    }
+    
+
+    /**
+     * Registro de los radicados de los oficios de traslado 
+     * 
+     * Se registran los datos de los oficios enviados a las empresas solidarias antes
+     *
+     * Realiza las siguientes acciones:
+     *  - Envía notificación por correo electrónico
+     *  - Carga los archivos al google drive
+     *  - Actualiza los datos en la hoja de sheets
+     *  - Actualiza el historial de la visita de inspección
+     *  - Actualiza los datos de la visita de inspección
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function registrar_oficio_traslado(Request $request){
+        try {
+
+            $validatedData = $request->validate([
+                'id' => 'required',
+                'etapa' => 'required',
+                'estado' => 'required',
+                'estado_etapa' => 'required',
+                'numero_informe' => 'required',
+                'razon_social' => 'required',
+                'nit' => 'required',
+
+                'observaciones' => 'nullable|string',
+                'radicado_salida_traslado_empresa_solidaria' => 'required|string',
+                'fecha_radicado_salida_traslado_empresa_solidaria' => 'required|string',
+                'radicado_salida_traslado_revisoria_fiscal' => 'required|string',
+                'fecha_radicado_salida_traslado_revisoria_fiscal' => 'required|string',
+
+                'anexo_requerimiento_traslado.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_requerimiento_traslado.*' => 'nullable|string',
+            ]);
+
+            $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
+                                                    ->with('etapaProceso')
+                                                    ->first();
+
+            if($visita_inspeccion->etapa !== $validatedData['etapa']){
+                $successMessage = 'Estado de la etapa no permitido';
+                return response()->json(['error' => $successMessage], 404);
+            }else {
+
+                if ($request->file('anexo_requerimiento_traslado')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('anexo_requerimiento_traslado'), 
+                        $request->input('nombre_anexo_requerimiento_traslado'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'ANEXOS_OFICIOS_TRASLADO',
+                        '',
+                        'ANEXOS_OFICIOS_TRASLADO',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+                }
+
+                $update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+                NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $validatedData['radicado_salida_traslado_empresa_solidaria'], 
+                date('d/m/Y', strtotime($validatedData['fecha_radicado_salida_traslado_empresa_solidaria']))  , $validatedData['radicado_salida_traslado_revisoria_fiscal'], 
+                date('d/m/Y', strtotime($validatedData['fecha_radicado_salida_traslado_revisoria_fiscal'])));
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits['message']], 500);
+                }
+
+                $obserciones = ''; 
+
+                if($validatedData['observaciones'] !== ''){
+                    $obserciones = ' con las siguientes observaciones: '.$validatedData['observaciones'];
+                }
+
+                $asunto_email = 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '. $validatedData['numero_informe'],
+                                                    'mensaje' => 'Se actualizó el número de rádicado y fecha de los requerimientos previos a la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                                        $validatedData['nit'].' '.$obserciones];
+
+                $this->historialInformes($validatedData['id'], 'REGISTRO DE RADICADOS ENVIADOS PREVIOS A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], NULL, NULL, NULL, '', NULL);
+
+                $successMessage = 'Se registraron los oficios de salida correctamente';
+
+                $visita_inspeccion->radicado_salida_traslado_empresa_solidaria = $validatedData['radicado_salida_traslado_empresa_solidaria'];
+                $visita_inspeccion->fecha_radicado_salida_traslado_empresa_solidaria = $validatedData['fecha_radicado_salida_traslado_empresa_solidaria'];
+                $visita_inspeccion->radicado_salida_traslado_revisoria_fiscal = $validatedData['radicado_salida_traslado_revisoria_fiscal'];
+                $visita_inspeccion->fecha_radicado_salida_traslado_revisoria_fiscal = $validatedData['fecha_radicado_salida_traslado_revisoria_fiscal'];
+                $visita_inspeccion->save();
+
+                return response()->json(['message' => $successMessage]);
+            }
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            return response()->json(['error' => $errorMessage], 500);
         }
     }
     

@@ -46,4 +46,10 @@ class Entidad extends Model
         'estado',
         'motivo',
     ];
+
+
+    public function lugar()
+    {
+        return $this->hasOne(Lugares::class, 'departamento', 'departamento');
+    }
 }

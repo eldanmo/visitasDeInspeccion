@@ -49,8 +49,8 @@ class GoogleController extends Controller
         ],[
             'name' => $user_google->getName(),
             'email' => $user_google->getEmail(),
-            'google_token' => $user_google->token,
-            'google_refresh_token' => $user_google->refreshToken,
+            'google_token' => encrypt($user_google->token),
+            'google_refresh_token' => encrypt($user_google->refreshToken),
         ]);
 
         session(['google_token' => $user_google->token]);

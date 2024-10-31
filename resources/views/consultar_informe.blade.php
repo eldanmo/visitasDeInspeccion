@@ -80,6 +80,8 @@
                             <th class="table-primary">VISITA</th>
                             <th class="table-primary">ETAPA ACTUAL</th>
                             <th class="table-primary">ESTADO ETAPA ACTUAL</th>
+                            <th class="table-primary">DÍAS PARA FINALIZAR LA ETAPA</th>
+                            <th class="table-primary">FECHA LÍMITE PARA FINALIZAR LA ETAPA</th>
                             <th class="table-primary">RESPONSABLE(S) DE LA ETAPA ACTUAL</th>
                             <th class="table-primary">ESTADO DE LA VISITA</th>
                             <th class="table-primary">ACCIONES</th>
@@ -87,8 +89,32 @@
 
                         @if(isset($informes))
                             @foreach ($informes as $index => $informe)
-                            <tr>
-                                <td class="text-center">{{ $index +1 }}</td>
+
+                            @php
+                                //Clases para el semaforo Semaforo
+
+                                $fechaLimite = $informe->diasActuales->fecha_limite_etapa ?? null;
+                                $diferenciaDias = null;
+                                $clase = '';
+
+                                if ($fechaLimite) {
+                                    $fechaLimite = \Carbon\Carbon::parse($fechaLimite);
+                                    $diferenciaDias = \Carbon\Carbon::now()->diffInDays($fechaLimite, false);
+
+                                    if($informe->etapa === 'FINALIZADO' || $informe->etapa === 'CANCELADO' || $informe->etapa === 'SUSPENDIDO'){
+                                        $clase = 'table-light';
+                                    } elseif($diferenciaDias <= 0 || $diferenciaDias == 1 || $diferenciaDias == -1) {
+                                        $clase = 'table-danger';
+                                    } elseif($diferenciaDias <= 2) {
+                                        $clase = 'table-warning';
+                                    } elseif($diferenciaDias <= 5) {
+                                        $clase = 'table-success';
+                                    }
+                                }
+                            @endphp
+
+                            <tr class="{{ $clase }}">
+                                <td class="text-center">{{ $index + 1 }}</td>
                                 <td>{{ $informe->entidad->nit }}</td>
                                 <td>{{ $informe->entidad->razon_social }}</td>
                                 <td>{{ $informe->numero_informe }}</td>
@@ -100,15 +126,27 @@
                                         <p class="text-success">{{ $informe->estado_etapa }}</p>
                                     @endif
                                 </td>
+                                <td class="text-center">
+                                    @if($informe->etapa !== 'FINALIZADO' && $informe->etapa !== 'CANCELADO' && $informe->etapa !== 'SUSPENDIDO')
+                                        {{ $informe->diasActuales->dias_habiles ?? '' }}
+                                    @endif
+                                </td>
+                                <td class="text-center">
+                                    @if($informe->etapa !== 'FINALIZADO' && $informe->etapa !== 'CANCELADO' && $informe->etapa !== 'SUSPENDIDO')
+                                        @if($informe->diasActuales && $informe->diasActuales->fecha_limite_etapa)
+                                            {{ \Carbon\Carbon::parse($informe->diasActuales->fecha_limite_etapa)->format('d/m/Y') }}
+                                        @endif
+                                    @endif
+                                </td>
                                 <td>
-                                @php
-                                    $usuarios = json_decode($informe->usuario_actual);
-                                    $totalUsuarios = count($usuarios);
-                                @endphp
-                                @foreach($usuarios as $key => $usuario)
-                                    {{ $usuario->nombre }}
-                                    @if($key < $totalUsuarios - 1) , @endif
-                                @endforeach
+                                    @php
+                                        $usuarios = json_decode($informe->usuario_actual);
+                                        $totalUsuarios = count($usuarios);
+                                    @endphp
+                                    @foreach($usuarios as $key => $usuario)
+                                        {{ $usuario->nombre }}
+                                        @if($key < $totalUsuarios - 1) , @endif
+                                    @endforeach
                                 </td>
                                 
                                 <td>
@@ -124,6 +162,7 @@
                                     </a> 
                                 </td>
                             </tr>
+
                             @endforeach  
                         @endif
                     </table>

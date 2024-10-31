@@ -721,10 +721,12 @@
                     </div>
                 @endif
 
-                <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalCargarDocumento">
-                    <img src="{{ asset('images/upload_docs.svg') }}" width="30px" height="30px" alt="upload_docs">
-                    <p class="mt-1 mb-0">Cargar documentos</p>
-                </div>
+                @if($informe->etapa !== "CANCELADO" && $informe->etapa !== "FINALIZADO")
+                    <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalCargarDocumento">
+                        <img src="{{ asset('images/upload_docs.svg') }}" width="30px" height="30px" alt="upload_docs">
+                        <p class="mt-1 mb-0">Cargar documentos</p>
+                    </div>
+                @endif
 
                 @if(($informe->etapa !== "ASIGNACIÓN GRUPO DE INSPECCIÓN" && $informe->etapa !== "DIAGNÓSTICO INTENDENCIA" && $informe->etapa !== "FINALIZADO" && $informe->etapa !== "SUSPENDIDO") && ((Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Administrador' ) && $informe->etapa !== "CANCELADO" ) )
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalModificarGupoVisitaInspeccion">
@@ -787,7 +789,69 @@
                 @php
                     $modalConfirmarDiasAdicionales = false;
                     $modalConfirmarDiasAdicionalesDelegatura = false;
+                    $modalRegistroComunicadoPrevioVisita = false;
+                    $modalRegistroTraslado = false;
                 @endphp
+
+                @if(
+                    ($informe->etapaProceso->orden_etapa >= 10) &&
+                    ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) && 
+                    (Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Coordinador' ) 
+                    ) 
+                        <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalRegistroComunicadoPrevioVisita" style="cursor: pointer;" >
+                            <img src="{{ asset('images/register.svg') }}" width="30px" height="30px" alt="register">
+                            <p class="mt-1 mb-0">Registrar oficios de requerimientos de información y/ cartas de presentación</p>
+                        </div>
+                    @php
+                        $modalRegistroComunicadoPrevioVisita = true;
+                    @endphp
+                @else
+                    @foreach($informe->grupoInspeccion as $grupo)
+                        @if(($informe->etapaProceso->orden_etapa >= 10) && 
+                            ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) &&
+                            ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
+
+                            <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalRegistroComunicadoPrevioVisita" style="cursor: pointer;" >
+                                <img src="{{ asset('images/register.svg') }}" width="30px" height="30px" alt="register">
+                                <p class="mt-1 mb-0">Registrar oficios de requerimientos de información y/ cartas de presentación</p>
+                            </div>
+                        @endif
+                    @endforeach
+                    @php
+                        $modalRegistroComunicadoPrevioVisita = true;
+                    @endphp
+                @endif
+                
+                <!-- TODO: verificar que usuario registrará los rádicados -->
+
+                @if(
+                    ($informe->etapaProceso->orden_etapa >= 28) && 
+                    ($informe->radicado_salida_traslado_empresa_solidaria == NULL || $informe->radicado_salida_traslado_revisoria_fiscal == NULL) && 
+                    (Auth::user()->profile === 'Administrador' ) 
+                    ) 
+                        <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalRegistroTraslado" style="cursor: pointer;" >
+                            <img src="{{ asset('images/transfer.svg') }}" width="30px" height="30px" alt="transfer">
+                            <p class="mt-1 mb-0">Registrar oficios de requerimientos de traslado</p>
+                        </div>
+                    @php
+                        $modalRegistroTraslado = true;
+                    @endphp
+                @else
+                    @foreach($informe->grupoInspeccion as $grupo)
+                        @if(($informe->etapaProceso->orden_etapa >= 28) && 
+                            ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) &&
+                            ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
+
+                            <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalRegistroTraslado" style="cursor: pointer;" >
+                                <img src="{{ asset('images/transfer.svg') }}" width="30px" height="30px" alt="transfer">
+                                <p class="mt-1 mb-0">Registrar oficios de requerimientos de traslado</p>
+                            </div>
+                        @endif
+                    @endforeach
+                    @php
+                        $modalRegistroTraslado = true;
+                    @endphp
+                @endif
 
             </div>
         </div>
@@ -805,14 +869,15 @@
           <input type="hidden" id="codigo" value="{{$informe->entidad->codigo_entidad}}">
           <input type="hidden" id="sigla" value="{{$informe->entidad->sigla}}">
           <input type="hidden" id="id_entidad" value="{{$informe->entidad->id}}">
-          <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home" type="button" role="tab" aria-controls="nav-home" aria-selected="true">Información general</button>
-          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Histórico</button>
-          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-dias-habiles-transcurridos" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Días habiles transcurridos</button>
+          <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home" type="button" role="tab" aria-controls="nav-home" aria-selected="true" style="display: inline-flex; align-items: center;"> <img src="{{ asset('images/information.svg') }}" width="20px" height="20px" alt="information" class="me-2">Información general</button>
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/record.svg') }}" width="20px" height="20px" alt="record" class="me-2">Histórico</button>
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-dias-habiles-transcurridos" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/adicional_days.svg') }}" width="20px" height="20px" alt="adicional_days" class="me-2">Días habiles transcurridos</button>
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#estadisticas" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/statistics.svg') }}" width="20px" height="20px" alt="statistics" class="me-2">Seguimiento</button>
         @if($informe->etapa !== "DIAGNÓSTICO INTENDENCIA" && $informe->etapa !== "ASIGNACIÓN GRUPO DE INSPECCIÓN")
-          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-grupo-visita-inspeccion" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Grupo de inspección</button>
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-grupo-visita-inspeccion" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/group.svg') }}" width="20px" height="20px" alt="group" class="me-2">Grupo de inspección</button>
         @endif
         @if(count($informe->solicitudDiasAdicionales) > 0)
-          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-solicitudes-dias-adicionales" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Solicitudes de días adicionales</button>
+          <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-solicitudes-dias-adicionales" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/days.svg') }}" width="20px" height="20px" alt="days" class="me-2">Solicitudes de días adicionales</button>
         @endif         
         @php
                 $anexosAsuntoEspecial = $informe->anexos->filter(function($anexo) {
@@ -820,12 +885,10 @@
                 });
         @endphp
         @if ($anexosAsuntoEspecial->count() > 0)
-                <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-anexos-adicionales" type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Anexos adicionales</button> 
+                <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-anexos-adicionales" type="button" role="tab" aria-controls="nav-profile" aria-selected="false" style="display: inline-flex; align-items: center;"><img src="{{ asset('images/documents.svg') }}" width="20px" height="20px" alt="documents" class="me-2">Anexos adicionales</button> 
          @endif
         </div>
     </nav>
-
-    
 
     <div class="tab-content" id="nav-tabContent">
         <div class="tab-pane fade show active" id="nav-home" role="tabpanel" aria-labelledby="nav-home-tab">
@@ -1105,9 +1168,30 @@
                     <h3>Datos de la visita de inspección</h3>
                     <hr>
 
-                    @if($informe->tipo_visita)
+                    @if($informe->ciclo_vida)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Ciclo de vida principal</b></label><br>
+                            <p>{{ $informe->ciclo_vida }}</p>
+                        </div>
+                    @endif
+
+                    @if($informe->como_efectua_visita)
                         <div class="col-6 col-sm-4 col-md-3">
                             <label for=""><b>¿Cómo se efectua la visita?</b></label><br>
+                            <p>{{ $informe->como_efectua_visita }}</p>
+                        </div>
+                    @endif
+
+                    @if($informe->caracter_visita)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Carácter de la visita</b></label><br>
+                            <p>{{ $informe->caracter_visita }}</p>
+                        </div>
+                    @endif
+
+                    @if($informe->tipo_visita)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Tipo de visita</b></label><br>
                             <p>{{ $informe->tipo_visita }}</p>
                         </div>
                     @endif
@@ -1170,6 +1254,81 @@
                                 {{ $informe->ciclo_informacion_adicional }}
                             </p>
                         </div>
+                    @endif
+
+                    @if($informe->radicado_salida_comunicado_visita_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Oficio de requerimiento de información y/o cartas de presentación a la empresa solidaria</b></label><br>
+                            <p>
+                                {{ $informe->radicado_salida_comunicado_visita_empresa_solidaria }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_salida_comunicado_visita_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del oficio de requerimiento de información y/o cartas de presentación a empresa solidaria</b></label><br>
+                            <p>
+                                {{ \Carbon\Carbon::parse($informe->fecha_radicado_salida_comunicado_visita_empresa_solidaria)->format('d/m/Y') }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->radicado_salida_comunicado_visita_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Oficio de requerimiento de información y/o cartas de presentación a la revisoría fiscal</b></label><br>
+                            <p>
+                                {{ $informe->radicado_salida_comunicado_visita_revisoria_fiscal }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_salida_comunicado_visita_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del oficio de requerimiento de información y/o cartas de presentación a la revisoría fiscal</b></label><br>
+                            <p>
+                                {{ 
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_salida_comunicado_visita_revisoria_fiscal)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if ($informe->anexos)
+                            @php
+                                $anexosOficiosPrevios = $informe->anexos->filter(function($anexo) {
+                                    return $anexo->tipo_anexo === 'ANEXOS_OFICIOS_PREVIO_VISITA';
+                                });
+                            @endphp
+
+                            @if ($anexosOficiosPrevios->count() > 0)
+                            <div class="col-12 col-sm-12 col-md-12">
+                                <label for=""><b>Anexos de los oficios de requerimiento de información y/o cartas de presentación</b></label><br>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <tr class="text-center">
+                                            <th class="table-primary">#</th>
+                                            <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                            <th class="table-primary">ENLACE</th>
+                                        </tr>
+                                        @foreach($anexosOficiosPrevios as $k => $anexo)
+                                            <tr>
+                                                <td class="text-center">{{ $loop->iteration }}</td>
+                                                <td class="text-center">{{ $anexo->nombre }}</td>
+                                                <td>
+                                                    <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                        </svg>
+                                                        <span>Abrir</span>
+                                                    </a> 
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
                     @endif
 
                     @if($informe->radicado_entrada_informacion_adicional)
@@ -1383,48 +1542,56 @@
                     @if($informe->fecha_inicio_visita)
                         <div class="col-6 col-sm-4 col-md-3">
                             <label for=""><b>Fecha de inicio de la visita</b></label><br>
-                            <p>{{ $informe->fecha_inicio_visita }}</p>
+                            <p>{{ 
+                                \Carbon\Carbon::parse($informe->fecha_inicio_visita)->format('d/m/Y')
+                            }}</p>
                         </div>
                     @endif
 
                     @if($informe->fecha_fin_visita)
                         <div class="col-6 col-sm-4 col-md-3">
                             <label for=""><b>Fecha final de la visita</b></label><br>
-                            {{ $informe->fecha_fin_visita }}
+                            {{ 
+                                \Carbon\Carbon::parse($informe->fecha_fin_visita)->format('d/m/Y')
+                            }}
                         </div>
                     @endif
 
-                    @if ($informe->documentos_cierre_visita)
-                        <div class="col-12 col-sm-12 col-md-12">
-                            <label for=""><b>Documentos de cierre de visita de inspección</b></label><br>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <tr class="text-center">
-                                        <th class="table-primary">#</th>
-                                        <th class="table-primary">NOMBRE DEL ARCHIVO</th>
-                                        <th class="table-primary">ENLACE</th>
-                                    </tr>
-                                    @if(count($informe->anexos) > 0)
-                                        @foreach($informe->anexos as $k => $anexo)
-                                            @if($anexo->tipo_anexo === 'CIERRE_VISITA_INSPECCION')
-                                                <tr>
-                                                    <td class="text-center">{{ $loop->iteration }}</td>
-                                                    <td class="text-center">{{ $anexo->nombre }}</td>
-                                                    <td>
-                                                        <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
-                                                            </svg>
-                                                            <span>Abrir</span>
-                                                        </a> 
-                                                    </td>
-                                                </tr>
-                                            @endif
+                    @if ($informe->anexos)
+                            @php
+                                $anexosCierreVisita = $informe->anexos->filter(function($anexo) {
+                                    return $anexo->tipo_anexo === 'CIERRE_VISITA_INSPECCION';
+                                });
+                            @endphp
+
+                            @if ($anexosCierreVisita->count() > 0)
+                            <div class="col-12 col-sm-12 col-md-12">
+                                <label for=""><b>Documentos de cierre de visita de inspección</b></label><br>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <tr class="text-center">
+                                            <th class="table-primary">#</th>
+                                            <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                            <th class="table-primary">ENLACE</th>
+                                        </tr>
+                                        @foreach($anexosCierreVisita as $k => $anexo)
+                                            <tr>
+                                                <td class="text-center">{{ $loop->iteration }}</td>
+                                                <td class="text-center">{{ $anexo->nombre }}</td>
+                                                <td>
+                                                    <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                        </svg>
+                                                        <span>Abrir</span>
+                                                    </a> 
+                                                </td>
+                                            </tr>
                                         @endforeach
-                                    @endif
-                                </table>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     @endif
 
                     @foreach($informe->anexos as $k => $anexo)
@@ -1441,37 +1608,41 @@
                         @endif
                     @endforeach
 
-                    @if ($informe->documentos_cierre_visita)
-                        <div class="col-12 col-sm-12 col-md-12">
-                            <label for=""><b>Anexos de hallazgos consolidados</b></label><br>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <tr class="text-center">
-                                        <th class="table-primary">#</th>
-                                        <th class="table-primary">NOMBRE DEL ARCHIVO</th>
-                                        <th class="table-primary">ENLACE</th>
-                                    </tr>
-                                    @if(count($informe->anexos) > 0)
-                                        @foreach($informe->anexos as $k => $anexo)
-                                            @if($anexo->tipo_anexo === 'ANEXOS_HALLAZGOS_CONSOLIDADOS')
-                                                <tr>
-                                                    <td class="text-center">{{ $loop->iteration }}</td>
-                                                    <td class="text-center">{{ $anexo->nombre }}</td>
-                                                    <td>
-                                                        <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
-                                                            </svg>
-                                                            <span>Abrir</span>
-                                                        </a> 
-                                                    </td>
-                                                </tr>
-                                            @endif
+                    @if ($informe->anexos)
+                            @php
+                                $anexosHallazgosConsolidados = $informe->anexos->filter(function($anexo) {
+                                    return $anexo->tipo_anexo === 'ANEXOS_HALLAZGOS_CONSOLIDADOS';
+                                });
+                            @endphp
+
+                            @if ($anexosHallazgosConsolidados->count() > 0)
+                            <div class="col-12 col-sm-12 col-md-12">
+                                <label for=""><b>Anexos de hallazgos consolidados</b></label><br>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <tr class="text-center">
+                                            <th class="table-primary">#</th>
+                                            <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                            <th class="table-primary">ENLACE</th>
+                                        </tr>
+                                        @foreach($anexosHallazgosConsolidados as $k => $anexo)
+                                            <tr>
+                                                <td class="text-center">{{ $loop->iteration }}</td>
+                                                <td class="text-center">{{ $anexo->nombre }}</td>
+                                                <td>
+                                                    <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                        </svg>
+                                                        <span>Abrir</span>
+                                                    </a> 
+                                                </td>
+                                            </tr>
                                         @endforeach
-                                    @endif
-                                </table>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     @endif
 
                     @foreach($informe->anexos as $k => $anexo)
@@ -1548,7 +1719,7 @@
 
                         @if ($anexosRevisionProyectoInformeFinal->count() > 0)
                             <div class="col-12 col-sm-12 col-md-12">
-                                <label for=""><b>Anexos proyecto de informe final</b></label><br>
+                                <label for=""><b>Anexos proyecto de informe final con observaciones de coordinación</b></label><br>
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <tr class="text-center">
@@ -1906,6 +2077,126 @@
                         @endif
                     @endif
 
+                    @if($informe->radicado_salida_traslado_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado del oficio de traslado del informe externo a la empresa solidaria</b></label><br>
+                            <p>
+                                {{ $informe->radicado_salida_traslado_empresa_solidaria }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_salida_traslado_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del radicado del oficio de traslado del informe externo a la empresa solidaria</b></label><br>
+                            <p>
+                                {{ 
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_salida_traslado_empresa_solidaria)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->radicado_salida_traslado_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado del oficio de traslado del informe externo a la revisoría fiscal</b></label><br>
+                            <p>
+                                {{ $informe->radicado_salida_traslado_revisoria_fiscal }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_salida_traslado_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del radicado del oficio de traslado del informe externo a la revisoría fiscal</b></label><br>
+                            <p>
+                                {{
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_salida_traslado_revisoria_fiscal)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if ($informe->anexos)
+                        @php
+                            $anexosRadicadosTraslado = $informe->anexos->filter(function($anexo) {
+                                return $anexo->tipo_anexo === 'ANEXOS_OFICIOS_TRASLADO';
+                            });
+                        @endphp
+
+                        @if ($anexosRadicadosTraslado->count() > 0)
+                            <div class="col-12 col-sm-12 col-md-12">
+                                <label for=""><b>Anexos oficios de traslado</b></label><br>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <tr class="text-center">
+                                            <th class="table-primary">#</th>
+                                            <th class="table-primary">NOMBRE DEL ARCHIVO</th>
+                                            <th class="table-primary">ENLACE</th>
+                                        </tr>
+                                        @php
+                                            $k = 0;
+                                        @endphp
+                                        @foreach($anexosRadicadosTraslado as $k => $anexo)
+                                            <tr>
+                                                <td class="text-center">{{ $loop->iteration }}</td>
+                                                <td class="text-center">{{ $anexo->nombre }}</td>
+                                                <td>
+                                                    <a href="{{ $anexo->ruta }}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+                                                        </svg>
+                                                        <span>Abrir</span>
+                                                    </a> 
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+                    @endif
+
+                    @if($informe->radicado_entrada_pronunciacion_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado de entrada del pronunciamiento de la empresa solidaria</b></label><br>
+                            <p>
+                                {{ $informe->radicado_entrada_pronunciacion_empresa_solidaria }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_entrada_pronunciacion_empresa_solidaria)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del radicado de entrada del pronunciamiento de la empresa solidaria</b></label><br>
+                            <p>
+                                {{ 
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_entrada_pronunciacion_empresa_solidaria)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->radicado_entrada_pronunciacion_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado de entrada del pronunciamiento de la revisoría fiscal</b></label><br>
+                            <p>
+                                {{ $informe->radicado_entrada_pronunciacion_revisoria_fiscal }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_entrada_pronunciacion_revisoria_fiscal)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del radicado de entrada del pronunciamiento de la revisoría fiscal</b></label><br>
+                            <p>
+                                {{
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_entrada_pronunciacion_revisoria_fiscal)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
                     @if ($informe->anexos)
                         @php
                             $anexosRegistrarPronunciamiento = $informe->anexos->filter(function($anexo) {
@@ -2000,6 +2291,35 @@
                         @endif
                     @endif
 
+                    @if($informe->ciclo_informe_final_hallazgos)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Ciclo de vida memorando de traslado</b></label><br>
+                            <p>
+                                {{ $informe->ciclo_informe_final_hallazgos }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->radicado_memorando_traslado)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Radicado del memorando de traslado</b></label><br>
+                            <p>
+                                {{ $informe->radicado_memorando_traslado }}
+                            </p>
+                        </div>
+                    @endif
+
+                    @if($informe->fecha_radicado_memorando_traslado)
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <label for=""><b>Fecha del radicado del memorando de traslado</b></label><br>
+                            <p>
+                                {{
+                                    \Carbon\Carbon::parse($informe->fecha_radicado_memorando_traslado)->format('d/m/Y')
+                                }}
+                            </p>
+                        </div>
+                    @endif
+
                     @if ($informe->anexos)
                         @php
                             $anexosTrasladoResultadoRespuesta = $informe->anexos->filter(function($anexo) {
@@ -2009,7 +2329,7 @@
 
                         @if ($anexosTrasladoResultadoRespuesta->count() > 0)
                             <div class="col-12 col-sm-12 col-md-12">
-                                <label for=""><b>Anexos valoración de la información recibida</b></label><br>
+                                <label for=""><b>Anexos del traslado de hallazgos finales</b></label><br>
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <tr class="text-center">
@@ -2431,6 +2751,49 @@
                 </table>
             </div>
         </div>
+        <div class="tab-pane fade" id="estadisticas" role="tabpanel" aria-labelledby="nav-profile-tab">
+            <h4 class="mt-3 mb-3">Seguimiento</h4>
+            <hr>    
+
+            <label for="" class="mb-3" ><b>Porcentaje de ejecución de la visita </b> </label>
+            <div class="progress" role="progressbar" aria-label="Animated striped example" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: {{ number_format(($informe->etapaProceso->orden_etapa / 36) * 100, 2) }}%">{{ number_format(($informe->etapaProceso->orden_etapa / 36) * 100, 2) }}%</div>
+            </div>
+            
+            <hr>
+            <label for="" class="mb-3" ><b>Línea de tiempo </b> </label>
+
+
+            <div class="row">
+
+                @foreach($informe->historiales as $historial)
+                    @if($historial->accion === 'CREACIÓN')
+                        <div class="col col-sm-1 text-center " style="padding: 0;">
+                            <img src="{{ asset('images/diagnostico.svg') }}" width="300px" height="100%" alt="Item de línea de tiempo">
+                            <div class="p-2">
+                                <span style="font-size: 12px;" >{{$historial->accion}}</span><br>
+                                <span style="color:gray; font-size: 11px;" >{{$historial->fecha_creacion}}</span>
+                            </div>
+                        </div>
+                    @endif       
+                @endforeach
+
+                @foreach($parametros as $parametro)
+                    <div class="col col-sm-1 text-center" style="padding: 0;">
+                        @php
+                            $historial = $informe->historiales->firstWhere('etapa', $parametro->estado);
+                            $enHistorial = !is_null($historial);
+                        @endphp
+                        <img src="{{ asset($enHistorial ? 'images/diagnostico_finalizado.svg' : 'images/time_line.svg') }}" width="300px" height="100%" alt="Item de línea de tiempo">
+                        <div class="p-2">
+                            <b><span style="font-size: 12px;" >{{ $parametro->estado }}</span></b><br>
+                            <span style="color:gray; font-size: 11px;">{{ $enHistorial ? $historial->fecha_creacion : '' }}</span>
+                        </div>
+                    </div>
+                @endforeach
+                
+            </div>
+        </div>
         <div class="tab-pane fade" id="nav-anexos-adicionales" role="tabpanel" aria-labelledby="nav-profile-tab">
             <h4 class="mt-3 mb-3">Anexos adicionales</h4>
             <hr>
@@ -2801,12 +3164,33 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label for="tipo_visita" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
-                    <select class="form-select form-control required_plan_visita" id="tipo_visita">
+                    <label for="ciclo_vida" class="col-form-label">Ciclo de vida general de la visita (*)</label>
+                    <input type="text" class="form-control required_plan_visita" id="ciclo_vida" name="ciclo_vida">
+                </div>
+                <div class="mb-3">
+                    <label for="como_efectua_visita" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
+                    <select class="form-select form-control required_plan_visita" id="como_efectua_visita">
                         <option value="">--Seleccione--</option>
                         <option value="VIRTUAL">VIRTUAL</option>
                         <option value="PRESENCIAL">PRESENCIAL</option>
                         <option value="MIXTA">MIXTA</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="caracter_visita" class="col-form-label">Carácter de la visita (*)</label>
+                    <select class="form-select form-control required_plan_visita" id="caracter_visita">
+                        <option value="">--Seleccione--</option>
+                        <option value="ESPECIÍFICA">ESPECIÍFICA</option>
+                        <option value="GENERAL">GENERAL</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="tipo_visita" class="col-form-label">Tipo de visita (*)</label>
+                    <select class="form-select form-control required_plan_visita" id="tipo_visita">
+                        <option value="">--Seleccione--</option>
+                        <option value="CUMPLIMIENTO CON ENFOQUE BASADO EN RIESGO DE ACUERDO AL MIS">CUMPLIMIENTO CON ENFOQUE BASADO EN RIESGO DE ACUERDO AL MIS</option>
+                        <option value="SUPERVISIÓN BASADA EN RIESGOS">SUPERVISIÓN BASADA EN RIESGOS</option>
+                        <option value="INSTRUCTIVA">INSTRUCTIVA</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -2881,12 +3265,33 @@
                     </a>
                 </div>
                 <div class="mb-3">
-                    <label for="tipo_visita_modificada" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
+                    <label for="ciclo_vida" class="col-form-label">Ciclo de vida general de la visita (*)</label>
+                    <input type="text" class="form-control required_plan_visita_modificado" id="ciclo_vida_modificada" name="ciclo_vida_modificada" value="{{$informe->ciclo_vida}}" >
+                </div>
+                <div class="mb-3">
+                    <label for="como_efectua_visita_modificada" class="col-form-label">¿Cómo se efectuará la visita? (*)</label>
+                    <select class="form-select form-control required_plan_visita_modificado" id="como_efectua_visita_modificada">
+                        <option value="" {{ $informe->como_efectua_visita == '' ? 'selected' : '' }}>--Seleccione--</option>
+                        <option value="VIRTUAL" {{ $informe->como_efectua_visita == 'VIRTUAL' ? 'selected' : '' }}>VIRTUAL</option>
+                        <option value="PRESENCIAL" {{ $informe->como_efectua_visita == 'PRESENCIAL' ? 'selected' : '' }}>PRESENCIAL</option>
+                        <option value="MIXTA" {{ $informe->como_efectua_visita == 'MIXTA' ? 'selected' : '' }}>MIXTA</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="caracter_visita" class="col-form-label">Carácter de la visita (*)</label>
+                    <select class="form-select form-control required_plan_visita_modificado" id="caracter_visita_modificada">
+                        <option value="" {{ $informe->caracter_visita == '' ? 'selected' : '' }}>--Seleccione--</option>
+                        <option value="ESPECIÍFICA" {{ $informe->caracter_visita == 'ESPECIÍFICA' ? 'selected' : '' }}>ESPECIÍFICA</option>
+                        <option value="GENERAL" {{ $informe->caracter_visita == 'GENERAL' ? 'selected' : '' }}>GENERAL</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="tipo_visita" class="col-form-label">Tipo de visita (*)</label>
                     <select class="form-select form-control required_plan_visita_modificado" id="tipo_visita_modificada">
                         <option value="" {{ $informe->tipo_visita == '' ? 'selected' : '' }}>--Seleccione--</option>
-                        <option value="VIRTUAL" {{ $informe->tipo_visita == 'VIRTUAL' ? 'selected' : '' }}>VIRTUAL</option>
-                        <option value="PRESENCIAL" {{ $informe->tipo_visita == 'PRESENCIAL' ? 'selected' : '' }}>PRESENCIAL</option>
-                        <option value="MIXTA" {{ $informe->tipo_visita == 'MIXTA' ? 'selected' : '' }}>MIXTA</option>
+                        <option value="CUMPLIMIENTO CON ENFOQUE BASADO EN RIESGO DE ACUERDO AL MIS" {{ $informe->tipo_visita == 'CUMPLIMIENTO CON ENFOQUE BASADO EN RIESGO DE ACUERDO AL MIS' ? 'selected' : '' }}>CUMPLIMIENTO CON ENFOQUE BASADO EN RIESGO DE ACUERDO AL MIS</option>
+                        <option value="SUPERVISIÓN BASADA EN RIESGOS" {{ $informe->tipo_visita == 'SUPERVISIÓN BASADA EN RIESGOS' ? 'selected' : '' }}>SUPERVISIÓN BASADA EN RIESGOS</option>
+                        <option value="INSTRUCTIVA" {{ $informe->tipo_visita == 'INSTRUCTIVA' ? 'selected' : '' }}>INSTRUCTIVA</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -3484,7 +3889,7 @@
                             <tr class="text-center">
                                 <th class="table-primary">#</th>
                                 <th class="table-primary">Nombre del documento (*)</th>
-                                <th class="table-primary">Enlace (*)</th>
+                                <th class="table-primary">Documento (*)</th>
                                 <th class="table-primary">Acciones</th>
                             </tr>
                         </thead>
@@ -3492,6 +3897,202 @@
                             <tr class="tr_documentos_cierre_visita">
                                 <td>
                                     <p class="text-center">1</p>
+                                </td>
+                                <td>
+                                    <label id="">VERIFICACIÓN MUESTRA COBRANZA FT-SUPE-016</label>
+                                    
+                                </td>
+                                <td style="display: none;">
+                                    <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-016_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-016_noobligat" value="VERIFICACIÓN MUESTRA COBRANZA FT-SUPE-016" >
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-016_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-016_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">2</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN RIESGO DE CAPTACIONES FT-SUPE-020</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-020_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-020_noobligat" value="EVALUACIÓN RIESGO DE CAPTACIONES FT-SUPE-020" disabled >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-020_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-020_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">3</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DEL RIESGO OPERATIVO FT-SUPE-023</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-023_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-023_noobligat" value="EVALUACIÓN DEL RIESGO OPERATIVO FT-SUPE-023" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-023_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-023_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">4</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DEL RIESGO DE CRÉDITO FT-SUPE-024</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-024_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-024_noobligat" value="EVALUACIÓN DEL RIESGO DE CRÉDITO FT-SUPE-024" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-024_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-024_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">5</p>
+                                </td>
+                                <td>
+                                    <label id="">REVISIÓN CONTABLE Y FINANCIERA FT-SUPE-025</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-025_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-025_noobligat" value="REVISIÓN CONTABLE Y FINANCIERA FT-SUPE-025" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-025_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-025_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">6</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DEL RIESGO DE LIQUIDEZ. FT-SUPE-026</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-026_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-026_noobligat" value="EVALUACIÓN DEL RIESGO DE LIQUIDEZ. FT-SUPE-026" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-026_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-026_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">7</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DEL RIESGO DE SARLAFT FT-SUPE-027</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-027_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-027_noobligat" value="EVALUACIÓN DEL RIESGO DE SARLAFT FT-SUPE-027" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-027_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-027_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">8</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DE BUEN GOBIERNO FT-SUPE-028</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-028_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-028_noobligat" value="EVALUACIÓN DE BUEN GOBIERNO FT-SUPE-028" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-028_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-028_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">9</p>
+                                </td>
+                                <td>
+                                    <label id="">EVALUACIÓN DE LA REVISORÍA FISCAL FT-SUPE-029</label>
+                                    <div style="display: none;" >
+                                        <input type="text" class="form-control" id="nombre_documento_cierre_visita_FT-SUPE-029_noobligat" name="nombre_documento_cierre_visita_FT-SUPE-029_noobligat" value="EVALUACIÓN DE LA REVISORÍA FISCAL FT-SUPE-029" >
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="file" class="form-control" id="enlace_documento_cierre_visita_FT-SUPE-029_noobligat" name="enlace_documento_cierre_visita_FT-SUPE-029_noobligat" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                </td>
+                                <td class="text-center" >
+                                    <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>           
+
+                            <tr class="tr_documentos_cierre_visita">
+                                <td>
+                                    <p class="text-center">10</p>
                                 </td>
                                 <td>
                                     <input type="text" class="form-control" id="nombre_documento_cierre_visita" name="nombre_documento_cierre_visita">
@@ -4529,12 +5130,28 @@
                         <option value="No">No</option>
                     </select>
                 </div>
-                <div class="mb-3 div_radicado_entrada_pronunciacion" style="display: none;">
-                    <label for="radicado_entrada_pronunciacion" class="col-form-label">Radicado de entrada (*)</label>
-                    <input type="text" class="form-control required_pronunciacion_entidad" id="radicado_entrada_pronunciacion" required>
-                </div> 
+
+                <div class="row div_radicado_entrada_pronunciacion" style="display: none;">
+                    <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="radicado_entrada_pronunciacion_empresa_solidaria" >Radicado de entrada de la empresa solidaria</label>
+                        <input type="number" class="form-control required_pronunciacion_entidad" name="radicado_entrada_pronunciacion_empresa_solidaria" id="radicado_entrada_pronunciacion_empresa_solidaria" required min="1" >
+                    </div>
+                    <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="fecha_radicado_entrada_pronunciacion_empresa_solidaria" >Fecha del radicado de entrada de la empresa solidaria</label>
+                        <input type="date" class="form-control required_pronunciacion_entidad" name="fecha_radicado_entrada_pronunciacion_empresa_solidaria" id="fecha_radicado_entrada_pronunciacion_empresa_solidaria" required min="1" >
+                    </div>
+                    <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="radicado_entrada_pronunciacion_revisoria_fiscal" >Radicado de entrada de la revisoría fiscal</label>
+                        <input type="number" class="form-control required_pronunciacion_entidad" name="radicado_entrada_pronunciacion_revisoria_fiscal" id="radicado_entrada_pronunciacion_revisoria_fiscal" required min="1" >
+                    </div>
+                    <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="fecha_radicado_entrada_pronunciacion_revisoria_fiscal" >Fecha del radicado de entrada de la revisoría fiscal</label>
+                        <input type="date" class="form-control required_pronunciacion_entidad" name="fecha_radicado_entrada_pronunciacion_revisoria_fiscal" id="fecha_radicado_entrada_pronunciacion_revisoria_fiscal" required min="1" >
+                    </div>
+                </div>
+
                 <div class="table-responsive" >
-                    <label class="col-form-label">Documentos  adicionales</label>
+                    <label class="col-form-label">Documentos adicionales</label>
                     <table class="table table-sm" id="tabla_adicionales_registrar_pronunciamiento">
                         <thead>
                             <tr class="text-center">
@@ -4658,9 +5275,21 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label for="ciclo_informe_final_hallazgos" class="col-form-label">Ciclo de vida informe con hallazgos finales (*)</label>
+                    <label for="ciclo_informe_final_hallazgos" class="col-form-label">Ciclo de vida memorando de traslado (*)</label>
                     <input type="text" class="form-control required_informe_final_hallazgos" id="ciclo_informe_final_hallazgos" required>
                 </div> 
+                
+                <div class="row">
+                    <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="radicado_memorando_traslado" >Radicado del memorando de traslado (*)</label>
+                        <input type="number" class="form-control required_informe_final_hallazgos" name="radicado_memorando_traslado" id="radicado_memorando_traslado" required min="1" >
+                    </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                        <label class="form-label" for="fecha_radicado_memorando_traslado" >Fecha del radicado del memorando de traslado (*)</label>
+                        <input type="date" class="form-control required_informe_final_hallazgos" name="fecha_radicado_memorando_traslado" id="fecha_radicado_memorando_traslado">
+                    </div>
+                </div>
+
                 <div class="table-responsive" >
                     <label class="col-form-label">Documentos  adicionales</label>
                     <table class="table table-sm" id="tabla_adicionales_traslado_resultado_respuesta">
@@ -5421,6 +6050,172 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                     <button type="button" class="btn btn-primary enviarObservacion" onclick="confirmarDiasAdicionalesDelegatura()">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
+@if($modalRegistroComunicadoPrevioVisita)
+    <div class="modal fade" id="modalRegistroComunicadoPrevioVisita" tabindex="-1" aria-labelledby="buscarEntidadLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buscarEntidadLabel">Registrar oficios de requerimientos de información y/o cartas de presentación</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body mb-3">
+                    <div class="row">
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="radicado_salida_comunicado_visita_empresa_solidaria" ><b>Oficio de requerimiento de información y/o cartas de presentación a la empresa solidaria (*)</b></label>
+                            <input type="number" class="form-control required_requerimiento_previo_visita" name="radicado_salida_comunicado_visita_empresa_solidaria" id="radicado_salida_comunicado_visita_empresa_solidaria" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="fecha_radicado_salida_comunicado_visita_empresa_solidaria" ><b>Fecha del oficio de requerimiento de información y/o cartas de presentación a empresa solidaria (*)</b></label>
+                            <input type="date" class="form-control required_requerimiento_previo_visita" name="fecha_radicado_salida_comunicado_visita_empresa_solidaria" id="fecha_radicado_salida_comunicado_visita_empresa_solidaria" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="radicado_salida_comunicado_visita_revisoria_fiscal" ><b>Oficio de requerimiento de información y/o cartas de presentación a la revisoría fiscal (*)</b></label>
+                            <input type="number" class="form-control required_requerimiento_previo_visita" name="radicado_salida_comunicado_visita_revisoria_fiscal" id="radicado_salida_comunicado_visita_revisoria_fiscal" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="fecha_radicado_salida_comunicado_visita_revisoria_fiscal" ><b>Fecha del oficio de requerimiento de información y/o cartas de presentación a la revisoría fiscal (*)</b></label>
+                            <input type="date" class="form-control required_requerimiento_previo_visita" name="fecha_radicado_salida_comunicado_visita_revisoria_fiscal" id="fecha_radicado_salida_comunicado_visita_revisoria_fiscal" required min="1" >
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive" >
+                        <label class="col-form-label"><b>Documentos  adicionales</b></label>
+                        <table class="table table-sm" id="tabla_adicionales_oficio_previo_visita">
+                            <thead>
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">Nombre del archivo (*)</th>
+                                    <th class="table-primary">Adjunto (*)</th>
+                                    <th class="table-primary">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="tr_documentos_adicionales_oficio_previo_visita">
+                                    <td>
+                                        <p class="text-center">1</p>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control" name="nombre_anexo_oficio_previo_visita">
+                                    </td>
+                                    <td>
+                                        <input type="file" class="form-control" id="anexo_oficio_previo_visita" name="anexo_oficio_previo_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                    </td>
+                                    <td class="text-center" >
+                                        <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                            <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                                onclick="anadirRegistro('tabla_adicionales_oficio_previo_visita')">
+                                Añadir documento
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 div_observaciones_oficio_previo_visita">
+                        <label for="observaciones_oficio_previo_visita" class="col-form-label"><b>Observaciones</b></label>
+                        <textarea class="form-control required_revision_oficio_previo_visita" id="observaciones_oficio_previo_visita"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary enviarObservacion" onclick="registroComunicadoPrevioVisita()">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
+@if($modalRegistroTraslado)
+    <div class="modal fade" id="modalRegistroTraslado" tabindex="-1" aria-labelledby="buscarEntidadLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buscarEntidadLabel">Registrar oficios de requerimientos de traslado</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body mb-3">
+                    <div class="row">
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="radicado_salida_traslado_empresa_solidaria" ><b>Oficio de traslado del informe externo a la empresa solidaria (*)</b></label>
+                            <input type="number" class="form-control required_requerimiento_traslado" name="radicado_salida_traslado_empresa_solidaria" id="radicado_salida_traslado_empresa_solidaria" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="fecha_radicado_salida_traslado_empresa_solidaria" ><b>Fecha del oficio de traslado del informe externo a la empresa solidaria  (*)</b></label>
+                            <input type="date" class="form-control required_requerimiento_traslado" name="fecha_radicado_salida_traslado_empresa_solidaria" id="fecha_radicado_salida_traslado_empresa_solidaria" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="radicado_salida_traslado_revisoria_fiscal" ><b>Oficio de traslado del informe externo a la revisoría fiscal (*)</b></label>
+                            <input type="number" class="form-control required_requerimiento_traslado" name="radicado_salida_traslado_revisoria_fiscal" id="radicado_salida_traslado_revisoria_fiscal" required min="1" >
+                        </div>
+                        <div class="mb-3 col-12 col-sm-6">
+                            <label class="form-label" for="fecha_radicado_salida_traslado_revisoria_fiscal" ><b>Fecha del oficio de traslado del informe externo a la revisoría fiscal (*)</b></label>
+                            <input type="date" class="form-control required_requerimiento_traslado" name="fecha_radicado_salida_traslado_revisoria_fiscal" id="fecha_radicado_salida_traslado_revisoria_fiscal" required min="1" >
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive" >
+                        <label class="col-form-label"><b>Documentos adicionales</b></label>
+                        <table class="table table-sm" id="tabla_oficio_traslado_visita">
+                            <thead>
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">Nombre del archivo (*)</th>
+                                    <th class="table-primary">Adjunto (*)</th>
+                                    <th class="table-primary">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="tr_documentos_oficio_traslado_visita">
+                                    <td>
+                                        <p class="text-center">1</p>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control" name="nombre_anexo_requerimiento_traslado">
+                                    </td>
+                                    <td>
+                                        <input type="file" class="form-control" id="anexo_requerimiento_traslado" name="anexo_requerimiento_traslado" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                    </td>
+                                    <td class="text-center" >
+                                        <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                            <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                                onclick="anadirRegistro('tabla_oficio_traslado_visita')">
+                                Añadir documento
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 div_observaciones_oficio_traslado_visita">
+                        <label for="observaciones_oficio_traslado_visita" class="col-form-label"><b>Observaciones</b></label>
+                        <textarea class="form-control" id="observaciones_oficio_traslado_visita"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary enviarFormulario" onclick="registroOficioTraslado()">Enviar</button>
                 </div>
             </div>
         </div>
