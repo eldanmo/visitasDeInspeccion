@@ -21,14 +21,14 @@
                         </div>
                     @endif
 
-                @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Delegado' || Auth::user()->profile === 'Contratista' || Auth::user()->profile === 'Intendente' )
+                @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Delegado' || Auth::user()->profile === 'Contratista' || Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias')
                     <div class="col col-sm-5 col-md-5 col-lg-8 border border-primary text-center mr-3 mt-3 bg-primary">
                     
                         <div class="row text-center p-3 justify-content-center">
                             <div class="col col-sm-12">
                                 <h5 style="color: white;">Visitas de inspección</h5> 
                             </div>
-                            @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Intendente' || Auth::user()->profile === 'Administrador' )
+                            @if(Auth::user()->profile === 'Coordinador' || Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' || Auth::user()->profile === 'Administrador' )
                                 <a href="{{ url('/crear_entidad') }}" class="col-10 col-sm-10 col-md-10 col-lg-2 border border-success pt-3 m-3 text-center flex flex-col items-center bg-white" style="padding: 0 45px; text-decoration: none; color: inherit;">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -42,13 +42,13 @@
                                     <p>Consultar entidades</p>
                                 </a>
                             @endif
-                            @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendente')
-                                <a href="{{ url('/crear_diagnostico') }}" class="col-10 col-sm-10 col-md-10 col-lg-2 border border-warning pt-3 m-3 text-center flex flex-col items-center bg-white" style="padding: 0 45px; text-decoration: none; color: inherit;">
+                            @if(Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                <!-- <a href="{{ url('/crear_diagnostico') }}" class="col-10 col-sm-10 col-md-10 col-lg-2 border border-warning pt-3 m-3 text-center flex flex-col items-center bg-white" style="padding: 0 45px; text-decoration: none; color: inherit;">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                     </svg>
                                     <p >Crear diagnóstico</p>
-                                </a>
+                                </a> -->
                             @endif
                             <a href="{{ url('/consultar_informe') }}"  class="col-10 col-sm-10 col-md-10 col-lg-2 border border-warning pt-3 m-3 text-center flex flex-col items-center bg-white" style="padding: 0 45px; text-decoration: none; color: inherit;">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">

@@ -89,6 +89,8 @@ return new class extends Migration
             $table->string('ciclo_informe_final_hallazgos')->nullable();
             $table->string('radicado_memorando_traslado')->nullable();
             $table->date('fecha_radicado_memorando_traslado')->nullable();
+            
+            $table->string('acta_socializacion_visita')->nullable();
 
             $table->timestamps();
         });

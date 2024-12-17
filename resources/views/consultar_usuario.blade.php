@@ -21,7 +21,8 @@
                             <option value="Coordinador" {{ request('rol') == 'Coordinador' ? 'selected' : '' }}>Coordinación visitas de inspección</option>
                             <option value="Coordinacion asuntos especiales" {{ request('rol') == 'Coordinacion asuntos especiales' ? 'selected' : '' }}>Coordinacion asuntos especiales</option>
                             <option value="Delegado" {{ request('rol') == 'Delegado' ? 'selected' : '' }}>Delegatura</option>
-                            <option value="Intendente" {{ request('rol') == 'Intendente' ? 'selected' : '' }}>Intendencia</option>
+                            <option value="Intendencia de fondos de empleados" {{ request('rol') == 'Intendencia de fondos de empleados' ? 'selected' : '' }}>Intendencia de fondos de empleados</option>
+                            <option value="Intendencia de cooperativas y otras organizaciones solidarias" {{ request('rol') == 'Intendencia de cooperativas y otras organizaciones solidarias' ? 'selected' : '' }}>Intendencia de cooperativas y otras organizaciones solidarias</option>
                             <option value="Contratista" {{ request('rol') == 'Contratista' ? 'selected' : '' }}>Inspección</option>
                             <option value="Profesional asuntos especiales" {{ request('rol') == 'Profesional asuntos especiales' ? 'selected' : '' }}>Profesional asuntos especiales</option>
                         </select>
@@ -107,13 +108,14 @@
                             <label class="form-label" for="rol">Rol (*)</label>
                             <select class="form-control" name="profile" id="profile" required>
                                 <option value="">Seleccione</option>
-                                <option value="Administrador" >Administrador</option>
-                                <option value="Coordinador" >Coordinación visitas de inspección</option>
-                                <option value="Coordinacion asuntos especiales" >Coordinacion asuntos especiales</option>
-                                <option value="Delegado" >Delegatura</option>
-                                <option value="Intendente" >Intendencia</option>
-                                <option value="Contratista" >Inspección</option>
-                                <option value="Profesional asuntos especiales" >Profesional asuntos especiales</option>
+                                <option value="Administrador">Administrador</option>
+                                <option value="Coordinador">Coordinación visitas de inspección</option>
+                                <option value="Coordinacion asuntos especiales">Coordinacion asuntos especiales</option>
+                                <option value="Delegado">Delegatura</option>
+                                <option value="Intendencia de fondos de empleados">Intendencia de fondos de empleados</option>
+                                <option value="Intendencia de cooperativas y otras organizaciones solidarias">Intendencia de cooperativas y otras organizaciones solidarias</option>
+                                <option value="Contratista">Inspección</option>
+                                <option value="Profesional asuntos especiales">Profesional asuntos especiales</option>
                             </select>
                         </div>
                     </div>

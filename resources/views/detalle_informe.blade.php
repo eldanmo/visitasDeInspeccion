@@ -52,7 +52,7 @@
                     <p class="mt-1 mb-0">Acciones</p>
                 </div>
 
-                @if($informe->etapa === "DIAGNÓSTICO INTENDENCIA" && ($informe->usuarioDiagnostico->id == Auth::id() ) )
+                @if($informe->etapa === "DIAGNÓSTICO INTENDENCIA" && (Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' || Auth::user()->profile === 'Administrador' ) )
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalFinalizarDiagnostico">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -60,7 +60,7 @@
                         <p class="mt-1 mb-0">Finalizar diagnóstico</p>
                     </div>
                 @endif
-                @if((($informe->etapa === "DIAGNÓSTICO INTENDENCIA") && ($informe->usuarioDiagnostico->id == Auth::id() )) || (Auth::user()->profile === 'Administrador' && $informe->etapa !== "CANCELADO") )
+                @if((($informe->etapa === "DIAGNÓSTICO INTENDENCIA") && (Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' )) || (Auth::user()->profile === 'Administrador' && $informe->etapa !== "CANCELADO") )
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalCancelar">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -97,7 +97,7 @@
                         @endif
                     @endforeach
                 @endif
-                @if($informe->etapa === "EN REVISIÓN Y SUBSANACIÓN DEL DOCUMENTO DIAGNÓSTICO" && ($informe->usuarioDiagnostico->id == Auth::id() ) )
+                @if($informe->etapa === "EN REVISIÓN Y SUBSANACIÓN DEL DOCUMENTO DIAGNÓSTICO" && (Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' || Auth::user()->profile === 'Administrador' ) )
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalSubsanarDocumentoDiagnostico">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75" />
@@ -220,12 +220,11 @@
                         @endif
                     @endforeach
                 @endif
+
                 @if($informe->etapa === "VALORACIÓN DE LA INFORMACIÓN RECIBIDA" && (Auth::user()->profile === 'Administrador') ) 
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalValoracionInformacionRecibida">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-                        </svg>
-                        <p class="mt-1 mb-0">Confirmar visita de inspección</p>
+                        <img src="{{ asset('images/assessment.svg') }}" width="30px" height="30px" alt="assessment">
+                        <p class="mt-1 mb-0">Valoración de la información recibida</p>
                     </div>
                 @else
                     @foreach($informe->grupoInspeccion as $grupo)
@@ -233,10 +232,8 @@
                             ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
 
                             <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3" data-bs-toggle="modal" data-bs-target="#modalValoracionInformacionRecibida">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                </svg>
-                                <p class="mt-1 mb-0">Confirmar visita de inspección</p>
+                                <img src="{{ asset('images/assessment.svg') }}" width="30px" height="30px" alt="assessment">
+                                <p class="mt-1 mb-0">Valoración de la información recibida</p>
                             </div>
                         @endif
                     @endforeach
@@ -251,7 +248,7 @@
                     </div>
                 @endif
 
-                @if($informe->etapa === "ELABORACIÓN DE CARTAS DE PRESENTACIÓN" && (Auth::user()->profile === 'Administrador' || $informe->usuarioDiagnostico->id == Auth::id() ) ) 
+                @if($informe->etapa === "ELABORACIÓN DE CARTAS DE PRESENTACIÓN" && (Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' ) ) 
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalElaboracionCartasPresentacion">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 0 1-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 0 0 1.183 1.981l6.478 3.488m8.839 2.51-4.66-2.51m0 0-1.023-.55a2.25 2.25 0 0 0-2.134 0l-1.022.55m0 0-4.661 2.51m16.5 1.615a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V8.844a2.25 2.25 0 0 1 1.183-1.981l7.5-4.039a2.25 2.25 0 0 1 2.134 0l7.5 4.039a2.25 2.25 0 0 1 1.183 1.98V19.5Z" />
@@ -690,23 +687,19 @@
                     </div>
                 @endif
 
-                @if(($informe->etapa === "EN DILIGENCIAMIENTO DEL TABLERO DE CONTROL" || $informe->etapa === "FINALIZADO") && (Auth::user()->profile === 'Administrador' ) ) 
+                @if(($informe->etapa === "EN DILIGENCIAMIENTO DEL TABLERO DE CONTROL") && (Auth::user()->profile === 'Administrador' ) ) 
                     <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" onclick="generarTablero()">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15M9 12l3 3m0 0 3-3m-3 3V2.25" />
-                        </svg>
-                        <p class="mt-1 mb-0">Generar tablero</p>
+                        <img src="{{ asset('images/write.svg') }}" width="30px" height="30px" alt="write">
+                        <p class="mt-1 mb-0">Verificar diligenciamiento del tablero de control</p>
                     </div>
                 @else
                     @foreach($informe->grupoInspeccion as $grupo)
-                        @if(($informe->etapa === "EN DILIGENCIAMIENTO DEL TABLERO DE CONTROL" || $informe->etapa === "FINALIZADO") && 
+                        @if(($informe->etapa === "EN DILIGENCIAMIENTO DEL TABLERO DE CONTROL") && 
                             ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
 
                             <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" onclick="generarTablero()">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15M9 12l3 3m0 0 3-3m-3 3V2.25" />
-                                </svg>
-                                <p class="mt-1 mb-0">Generar tablero</p>
+                                <img src="{{ asset('images/write.svg') }}" width="30px" height="30px" alt="write">
+                                <p class="mt-1 mb-0">Verificar diligenciamiento del tablero de control</p>
                             </div>
                         @endif
                     @endforeach
@@ -791,10 +784,11 @@
                     $modalConfirmarDiasAdicionalesDelegatura = false;
                     $modalRegistroComunicadoPrevioVisita = false;
                     $modalRegistroTraslado = false;
+                    $modalSocializacionVisita = false;
                 @endphp
 
                 @if(
-                    ($informe->etapaProceso->orden_etapa >= 10) &&
+                    ($informe->etapaProceso->orden_etapa >= 11) &&
                     ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) && 
                     (Auth::user()->profile === 'Administrador' || Auth::user()->profile === 'Coordinador' ) 
                     ) 
@@ -807,7 +801,7 @@
                     @endphp
                 @else
                     @foreach($informe->grupoInspeccion as $grupo)
-                        @if(($informe->etapaProceso->orden_etapa >= 10) && 
+                        @if(($informe->etapaProceso->orden_etapa >= 11) && 
                             ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) &&
                             ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
 
@@ -825,7 +819,7 @@
                 <!-- TODO: verificar que usuario registrará los rádicados -->
 
                 @if(
-                    ($informe->etapaProceso->orden_etapa >= 28) && 
+                    ($informe->etapaProceso->orden_etapa >= 29) && 
                     ($informe->radicado_salida_traslado_empresa_solidaria == NULL || $informe->radicado_salida_traslado_revisoria_fiscal == NULL) && 
                     (Auth::user()->profile === 'Administrador' ) 
                     ) 
@@ -838,7 +832,7 @@
                     @endphp
                 @else
                     @foreach($informe->grupoInspeccion as $grupo)
-                        @if(($informe->etapaProceso->orden_etapa >= 28) && 
+                        @if(($informe->etapaProceso->orden_etapa >= 29) && 
                             ($informe->radicado_salida_comunicado_visita_empresa_solidaria == NULL || $informe->radicado_salida_comunicado_visita_revisoria_fiscal == NULL) &&
                             ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
 
@@ -850,6 +844,33 @@
                     @endforeach
                     @php
                         $modalRegistroTraslado = true;
+                    @endphp
+                @endif
+
+                @if(
+                    ($informe->etapa === "EN REUNIÓN DE SOCIALIZACIÓN DE LA VISITA DE INSPECCIÓN") && 
+                    (Auth::user()->profile === 'Administrador' ) 
+                    ) 
+                        <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalSocializacionVisita" style="cursor: pointer;" >
+                            <img src="{{ asset('images/meet.svg') }}" width="30px" height="30px" alt="meet">
+                            <p class="mt-1 mb-0">Registrar socialización de visita de inspección</p>
+                        </div>
+                    @php
+                        $modalSocializacionVisita = true;
+                    @endphp
+                @else
+                    @foreach($informe->grupoInspeccion as $grupo)
+                        @if(($informe->etapa === "EN REUNIÓN DE SOCIALIZACIÓN DE LA VISITA DE INSPECCIÓN") && 
+                            ($grupo->id_usuario == Auth::id() && $grupo->rol == 'Lider de visita'))
+
+                            <div class="col-12 col-sm-3 col-md-2 mt-1 d-flex flex-column justify-content-center align-items-center border border-dark mr-3 p-1" data-bs-toggle="modal" data-bs-target="#modalSocializacionVisita" style="cursor: pointer;" >
+                                <img src="{{ asset('images/meet.svg') }}" width="30px" height="30px" alt="meet">
+                                <p class="mt-1 mb-0">Registrar socialización de visita de inspección</p>
+                            </div>
+                        @endif
+                    @endforeach
+                    @php
+                        $modalSocializacionVisita = true;
                     @endphp
                 @endif
 
@@ -2757,7 +2778,7 @@
 
             <label for="" class="mb-3" ><b>Porcentaje de ejecución de la visita </b> </label>
             <div class="progress" role="progressbar" aria-label="Animated striped example" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: {{ number_format(($informe->etapaProceso->orden_etapa / 36) * 100, 2) }}%">{{ number_format(($informe->etapaProceso->orden_etapa / 36) * 100, 2) }}%</div>
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: {{ number_format(($informe->etapaProceso->orden_etapa / 34) * 100, 2) }}%">{{ number_format(($informe->etapaProceso->orden_etapa / 34) * 100, 2) }}%</div>
             </div>
             
             <hr>
@@ -2871,7 +2892,7 @@
     </div>
 </div>
 
-@if($informe->etapa === "DIAGNÓSTICO INTENDENCIA" && ($informe->usuarioDiagnostico->id == Auth::id() ) )
+@if($informe->etapa === "DIAGNÓSTICO INTENDENCIA" && (Auth::user()->profile === 'Intendencia de fondos de empleados' || Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' || Auth::user()->profile === 'Administrador' ) )
     <div class="modal fade" id="modalFinalizarDiagnostico" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -3556,15 +3577,15 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
+                <!-- <div class="mb-3">
                     <label for="necesidad_visita" class="col-form-label">¿Es necesario efectuar la visita? (*)</label>
                     <select class="form-select form-control required_valoracion_informacion" id="necesidad_visita" onchange="necesidadVisita()">
                         <option value="">--Seleccione--</option>
                         <option value="Si">Si</option>
                         <option value="No">No</option>
                     </select>
-                </div>
-                <div class="mb-3 div_ciclo_vida_plan_visita_ajustado" style="display: none;" >
+                </div> -->
+                <div class="mb-3 div_ciclo_vida_plan_visita_ajustado">
                     <label for="ciclo_vida_plan_visita_ajustado" class="col-form-label">Plan de visita ajustado (*)</label>
                     <input type="file" class="form-control" id="ciclo_vida_plan_visita_ajustado" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
                 </div>
@@ -3724,22 +3745,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3" >
-                    <label for="documento_apertura_visita" class="col-form-label">¿Acta de apertura de la visita o grabación? (*)</label>
-                    <select name="documento_apertura_visita" id="documento_apertura_visita" class="form-control" onchange="productoAbrirVisita()" required>
-                        <option value="">--Seleccione--</option>
-                        <option value="Acta de apertura">Acta de apertura</option>
-                        <option value="Grabación de apertura">Grabación de apertura</option>
-                    </select>
-                </div>  
-                <div class="mb-3" style="display: none;" id="div_acta_apertura_visita" >
-                    <label for="apertura_visita" class="col-form-label">Acta de apertura (*)</label>
-                    <input type="file" class="form-control" id="acta_apertura_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
-                </div>  
-                <div class="mb-3" style="display: none;" id="div_grabacion_apertura_visita" >
-                    <label for="apertura_visita" class="col-form-label">Enlace de grabación (*)</label>
-                    <input type="text" class="form-control" id="grabacion_apertura_visita" required>
-                </div>  
+                
                 <!-- <div class="mb-3" >
                     <label for="carta_salvaguarda" class="col-form-label">Carta salvaguarda (*)</label>
                     <input type="file" class="form-control" id="carta_salvaguarda" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
@@ -3882,6 +3888,22 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div class="mb-3" >
+                    <label for="documento_apertura_visita" class="col-form-label">¿Acta de apertura de la visita o grabación? (*)</label>
+                    <select name="documento_apertura_visita" id="documento_apertura_visita" class="form-control" onchange="productoAbrirVisita()" required>
+                        <option value="">--Seleccione--</option>
+                        <option value="Acta de apertura">Acta de apertura</option>
+                        <option value="Grabación de apertura">Grabación de apertura</option>
+                    </select>
+                </div>  
+                <div class="mb-3" style="display: none;" id="div_acta_apertura_visita" >
+                    <label for="apertura_visita" class="col-form-label">Acta de apertura (*)</label>
+                    <input type="file" class="form-control" id="acta_apertura_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                </div>  
+                <div class="mb-3" style="display: none;" id="div_grabacion_apertura_visita" >
+                    <label for="apertura_visita" class="col-form-label">Enlace de grabación (*)</label>
+                    <input type="text" class="form-control" id="grabacion_apertura_visita" required>
+                </div>  
                 <div class="mb-3" >               
                     <label>Documentos del cierre de la visita (*)</label>
                     <table class="table table-sm" id="tabla_documentos_cierre_visita">
@@ -4121,10 +4143,16 @@
                     <label for="observaciones_cierre_visita" class="col-form-label">Observaciones</label>
                     <textarea class="form-control" id="observaciones_cierre_visita"></textarea>
                 </div>
+                <div class="mb-3 form-check">
+                    <input class="form-check-input check-send-condition" type="checkbox" id="flexCheckIndeterminate" onclick="confirmacionCargueDocs()">
+                    <label class="form-check-label" for="flexCheckIndeterminate">
+                        <b>Confirmo haber realizado el cargue de los documentos a eSigna</b>
+                    </label>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-success cerrarVisitaInspeccion" onclick="cerrarVisitaInspeccion()">Finalizar</button>
+                <button type="button" class="btn btn-success cerrarVisitaInspeccion btn-send-condition" disabled="true" onclick="cerrarVisitaInspeccion()">Finalizar</button>
             </div>
         </div>
     </div>
@@ -6277,6 +6305,91 @@
         </div>
     </div>
 </div>
+
+@if($modalSocializacionVisita)
+    <div class="modal fade" id="modalSocializacionVisita" tabindex="-1" aria-labelledby="buscarEntidadLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="buscarEntidadLabel">Registrar socialización de visita de inspección</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body mb-3">
+
+                    <div class="mb-3">
+                        <label for="producto_generado_socializacion" class="col-form-label">Producto generado de la socialización (*):</label>
+                        <select name="producto_generado_socializacion" id="producto_generado_socializacion" class="form-control" onchange="productoGeneradoSocializacion()" >
+                            <option value="">--Seleccione--</option>
+                            <option value="GRABACIÓN">GRABACIÓN</option>
+                            <option value="DOCUMENTO(S)">ACTA DE ASISTENCIA</option>
+                            <option value="AMBOS">AMBOS</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" style="display:none;" id="div_enlace_grabacion_socializacion" >
+                        <label for="enlace_grabacion_socializacion" class="col-form-label">Enlace de la grabación (*):</label>
+                        <input type="text" class="form-control required" id="enlace_grabacion_socializacion" required>
+                    </div>
+
+                    <div class="mb-3" style="display:none;" id="div_acta_asistencia_socializacion" >
+                        <label for="acta_asistencia_socializacion" class="col-form-label">Acta de asistencia a la reunión (*):</label>
+                        <input type="file" class="form-control required" name="acta_asistencia_socializacion" id="acta_asistencia_socializacion" required>
+                    </div>
+               
+                    <div class="table-responsive" >
+                        <label class="col-form-label">Documentos adicionales</label>
+                        <table class="table table-sm" id="tabla_socializacion_visita">
+                            <thead>
+                                <tr class="text-center">
+                                    <th class="table-primary">#</th>
+                                    <th class="table-primary">Nombre del archivo (*)</th>
+                                    <th class="table-primary">Adjunto (*)</th>
+                                    <th class="table-primary">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="tr_documentos_socializacion_visita">
+                                    <td>
+                                        <p class="text-center">1</p>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control" name="nombre_anexo_socializacion_visita">
+                                    </td>
+                                    <td>
+                                        <input type="file" class="form-control" id="anexo_socializacion_visita" name="anexo_socializacion_visita" accept=".pdf,.doc,.docx,.xls,.xlsx" required>
+                                    </td>
+                                    <td class="text-center" >
+                                        <button type="button" class="btn btn-outline-danger" onclick="eliminarInspector(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="d-grid gap-2 d-flex justify-content-end mb-2">
+                            <button type="button" class="btn btn-primary" style="--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .75rem;"
+                                onclick="anadirRegistro('tabla_socializacion_visita')">
+                                Añadir documento
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 div_observaciones_socializacion_visita">
+                        <label for="observaciones_socializacion_visita" class="col-form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones_socializacion_visita"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary enviarFormulario" onclick="finalizarSocializarVisita()">Enviar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 
 
 

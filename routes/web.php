@@ -67,9 +67,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/consultar_dias_no_laborales', [DiagnosticoController::class, 'consultar_dias_no_laborales'])->name('consultar_dias_no_laborales');
 
     Route::post('/finalizar_diagnostico', [DiagnosticoController::class, 'finalizar_diagnostico'])->name('finalizar_diagnostico');
+    Route::post('/solicitar_diagnostico', [DiagnosticoController::class, 'solicitar_diagnostico'])->name('solicitar_diagnostico');
+    Route::post('/validateDrive', [DiagnosticoController::class, 'validateDrive'])->name('validateDrive');
     Route::post('/asignar_grupo_inspeccion', [DiagnosticoController::class, 'asignar_grupo_inspeccion'])->name('asignar_grupo_inspeccion');
     Route::post('/guardar_revision_diagnostico', [DiagnosticoController::class, 'guardar_revision_diagnostico'])->name('guardar_revision_diagnostico');
     Route::post('/finalizar_subasanar_diagnostico', [DiagnosticoController::class, 'finalizar_subasanar_diagnostico'])->name('finalizar_subasanar_diagnostico');
+    Route::post('/finalizar_socializar_visita', [DiagnosticoController::class, 'finalizar_socializar_visita'])->name('finalizar_socializar_visita');
     Route::post('/guardar_plan_visita', [DiagnosticoController::class, 'guardar_plan_visita'])->name('guardar_plan_visita');
     Route::post('/revisar_plan_visita', [DiagnosticoController::class, 'revisar_plan_visita'])->name('revisar_plan_visita');
     Route::post('/confirmacion_informacion_previa_visita', [DiagnosticoController::class, 'confirmacion_informacion_previa_visita'])->name('confirmacion_informacion_previa_visita');

@@ -85,6 +85,7 @@ class VisitaInspeccion extends Model
         'radicado_memorando_traslado',
         'fecha_radicado_memorando_traslado',
 
+        'acta_socializacion_visita',
     ];
 
     public function entidad()

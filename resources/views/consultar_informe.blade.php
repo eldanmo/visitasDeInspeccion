@@ -1,4 +1,9 @@
 <x-app-layout >
+@if(Auth::user()->profile === 'Coordinador' || 
+    Auth::user()->profile === 'Administrador' || 
+    Auth::user()->profile === 'Intendencia de fondos de empleados' || 
+    Auth::user()->profile === 'Intendencia de cooperativas y otras organizaciones solidarias' || 
+    Auth::user()->profile === 'Contratista')
     <div class="container">
         <h4 class="mt-3 mb-3">Visitas de inspección</h4>
         <form action="{{ route('consultar_informe') }}" method="GET">
@@ -66,7 +71,7 @@
                     </div>
                     
                     <div class="col col-sm-12 text-end mt-3 mb-3">
-                        <button type="button botonEnviar" onclick="generarTableroMasivo()" class="btn btn-success">Generar tablero</button>
+                        <!-- <button type="button botonEnviar" onclick="generarTableroMasivo()" class="btn btn-success">Generar tablero</button> -->
                         <button type="submit" class="btn btn-primary">Buscar</button>
                     </div>
         </form>
@@ -172,4 +177,9 @@
                     @endif
             </div>
     </div>
+@else
+   <div class="container">
+       <h3>No tienes permisos para ingresar a esta página</h3>
+   </div>
+@endif
 </x-app-layout >

@@ -21,8 +21,6 @@ use App\Models\HistoricoSolicitudDiaAdicional;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
-/*use Google\Client;
-use Google\Service\Drive;*/
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -93,6 +91,28 @@ class DiagnosticoController extends Controller
             $usuarioCreacionId = Auth::id();
             $userName = Auth::user()->name;
             $anio_actual = date('Y');
+            $usuario_intendente = [];
+
+            //Consulta de entidad
+
+            $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
+
+            //Busqueda de usuario intendente 
+
+            if($entidad->naturaleza_organizacion === 'FONDO'){
+                $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                            ->get();
+            }else {
+            $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                        ->get();
+            }
+
+            //Current usser
+
+            foreach($usuarios_intendentes as $usuario){
+                $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+            }
 
             $visita_inspeccion = new VisitaInspeccion();
             $visita_inspeccion->fecha_inicio_diagnostico = $validatedData['fecha_inicio_diagnostico'];
@@ -102,15 +122,30 @@ class DiagnosticoController extends Controller
             $visita_inspeccion->estado_informe = 'VIGENTE';
             $visita_inspeccion->estado_etapa = 'VIGENTE';
             $visita_inspeccion->usuario_diagnostico = $usuarioCreacionId;
-            $visita_inspeccion->usuario_actual = json_encode([['id' => $usuarioCreacionId, 'nombre' => $userName]]);
+            $visita_inspeccion->usuario_actual = json_encode($usuario_intendente);
             $visita_inspeccion->save();
 
             $visita_inspeccion->numero_informe = $visita_inspeccion->id . $anio_actual;
             $visita_inspeccion->save();
 
+            $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
+
             $create_sheets = $this->create_sheets($visita_inspeccion->id, 
                                 $visita_inspeccion->id . $anio_actual,
+                                NULL,
                                 $validatedData['nit'],
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                $entidad->numero_asociados,
+                                $entidad->total_activos,
+                                $entidad->fecha_corte_visita,
+                                $entidad->nivel_supervision
                             );
 
             if($create_sheets['status'] === 'error'){
@@ -123,8 +158,13 @@ class DiagnosticoController extends Controller
             $asunto_email = 'Creación diagnóstico '.$visita_inspeccion->numero_informe;
             $datos_adicionales = ['numero_informe' => 'Se ha creado el diagnóstico número '.$visita_inspeccion->numero_informe,
                                     'mensaje' => 'Se realizó la creación del diagnóstico de la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                                     $validatedData['nit'] . ' recuerde registrar la finalización de este DIAGNÓSTICO INTENDENCIA antes del '. $validatedData['fecha_fin_diagnostico']];
-            $this->enviar_correos($usuarioCreacionId, $asunto_email, $datos_adicionales);
+                                     $validatedData['nit']];
+
+            //Send email
+
+            foreach($usuarios_intendentes as $usuario){
+                $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+            }
 
             $successMessage = 'Diágnostico creado correctamente';
 
@@ -796,6 +836,202 @@ class DiagnosticoController extends Controller
         return in_array($fecha->format('Y-m-d'), $diasFestivos);
     }
 
+    
+    /**
+     * Solicitud de Creación del diagnóstico para una entidad.
+     *
+     * Valida los datos de entrada y crea una solicitud de diagnóstico a una entidad creando la visita de inspección 
+     * Realiza las siguientes acciones:
+     *  - Validadción de datos que ingresan
+     *  - Validación que la entidad no tenga visitas sin finalizar
+     *  - Declaración de variables
+     *  - Consulta de entidad
+     *  - Busqueda de usuario intendente 
+     *  - Creación de la visita de inspección
+     *  - Creación de la carpeta en drive que contendra los folders
+     *  - Creación del registro en la hoja de cálculo de sheets
+     *  - Creación del historico
+     *  - Envío de notifiación a la intendencia
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con el id de la entidad.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el diagnóstico se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function solicitar_diagnostico(Request $request) {
+
+        try {
+
+            //Validadción de datos que ingresan
+
+            $validatedData = $request->validate([
+                'id' => 'required',
+                'observacion' => 'required',
+                'anexo_solicitar_diagnostico.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
+                'nombre_anexo_solicitar_diagnostico.*' => 'string',
+            ]);
+
+            //Validación que la entidad no tenga visitas sin finalizar
+
+            $informe_entidad = VisitaInspeccion::where('id_entidad', $validatedData['id'])
+                                                ->whereNotIn('estado_informe', ['FINALIZADO', 'CANCELADO'])
+                                                ->get();
+
+            if ($informe_entidad->count() > 0) {
+                return response()->json(['error' => 'La entidad ya se encuentra con una visita de inspección activa'], 422);
+            }
+
+            //Declaración de variables 
+    
+            $usuarioCreacionId = Auth::id();
+            $anio_actual = date('Y');
+            $usuario_intendente = [];
+
+            //Consulta de entidad
+
+            $entidad = Entidad::where('id', $validatedData['id'])
+                                ->first();
+
+            //Busqueda de usuario intendente 
+
+            if($entidad->naturaleza_organizacion === 'FONDO'){
+                $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                            ->get();
+            }else {
+                $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+            }
+
+            foreach($usuarios_intendentes as $usuario){
+                $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+            }
+
+            //Creación de la visita de inspección
+
+            $visita_inspeccion = new VisitaInspeccion();
+            $visita_inspeccion->fecha_inicio_diagnostico = date('Y-m-d');
+            $visita_inspeccion->id_entidad = $validatedData['id'];
+            $visita_inspeccion->usuario_creacion = $usuarioCreacionId;
+            $visita_inspeccion->etapa = 'DIAGNÓSTICO INTENDENCIA';
+            $visita_inspeccion->estado_informe = 'VIGENTE';
+            $visita_inspeccion->estado_etapa = 'VIGENTE';
+            $visita_inspeccion->usuario_diagnostico = $usuarioCreacionId;
+            $visita_inspeccion->usuario_actual = json_encode($usuario_intendente);
+            $visita_inspeccion->save();
+
+            $visita_inspeccion->numero_informe = $visita_inspeccion->id . $anio_actual;
+            $visita_inspeccion->save();
+
+            //Creación de la carpeta en drive
+
+            $accessToken = decrypt(auth()->user()->google_token);
+            $folderId = "";
+
+            $folderData = [
+                'name' => $entidad->codigo.'_'.$entidad->nit.'_'.$entidad->sigla.'_'.$visita_inspeccion->id . $anio_actual,
+                'parents' => [env('FOLDER_GOOGLE')],
+                'mimeType' => 'application/vnd.google-apps.folder',
+            ];
+
+            $response = Http::withToken($accessToken)->post('https://www.googleapis.com/drive/v3/files', $folderData);
+
+            if ($response->successful()) {
+                $folder = $response->json();
+                $folderId = $folder['id'];
+
+                if ($request->file('anexo_solicitar_diagnostico')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('anexo_solicitar_diagnostico'), 
+                        $request->input('nombre_anexo_solicitar_diagnostico'), 
+                        $folderId,
+                        $validatedData['id'],
+                        'VISITA DE INSPECCIÓN',
+                        'ANEXO_SOLICITUD_DOCUMENTO_DIAGNOSTICO',
+                        '',
+                        'ANEXO_SOLICITUD_DOCUMENTO_DIAGNOSTICO',
+                        $visita_inspeccion->id,
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        return response()->json(['error' => $response_files['message']], 500);
+                    }
+                }
+        
+            } else {
+
+                if (strpos($response->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                    auth()->logout();
+                    return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                }
+                return response()->json(['error' => $response->json()['error']['message']], 500);
+
+            }
+
+            $visita_inspeccion->carpeta_drive = $folderId;
+            $visita_inspeccion->save();
+
+            //Creación del registro en la hoja de cálculo de sheets
+
+            $entidad = Entidad::where('id', $validatedData['id'])
+                                ->first();
+
+            $fechaFormateada = Carbon::parse($entidad->fecha_ultimo_reporte)->format('d/m/Y');
+
+            $create_sheets = $this->create_sheets($visita_inspeccion->id, 
+                                $visita_inspeccion->id . $anio_actual,
+                                NULL,
+                                $entidad->nit,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL,
+                                $entidad->numero_asociados,
+                                $entidad->total_activos,
+                                $fechaFormateada,
+                                $entidad->nivel_supervision
+                            );
+
+            if($create_sheets['status'] === 'error'){
+                return response()->json(['error' => $create_sheets['message']], 500);
+            }
+
+            //Creación del historico
+
+            $this->historialInformes($visita_inspeccion->id, 'CREACIÓN', 'SOLICITUD DE DIAGNÓSTICO A INTENDENCIA', 'VIGENTE', date('Y-m-d'), '', 'VIGENTE', '', date('Y-m-d'), NULL, '', NULL);
+            
+            //Creación del registro para conteo de días
+            
+            $this->conteoDias($visita_inspeccion->id, 'DIAGNÓSTICO INTENDENCIA', date('Y-m-d') , NULL);
+
+            //Envío de notifiación a la intendencia
+
+            $asunto_email = 'solicitud de creación de dumento diagnóstico '.$visita_inspeccion->numero_informe;
+            $datos_adicionales = ['numero_informe' => 'Se ha la solicitud de documento diagnóstico '.$visita_inspeccion->numero_informe,
+                                    'mensaje' => 'Se realizó la solicitud de creación del documento diagnóstico de la entidad '. $entidad->razon_social . ' identificada con el nit '.
+                                     $entidad->nit . ' con las siguientes observaciones: '. $validatedData['observacion']];
+
+            foreach($usuarios_intendentes as $usuario){
+                $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+            }
+
+            //Mensaje de respuesta
+
+            $successMessage = 'Solicitud de diagnóstico creada correctamente';
+
+            return response()->json(['message' => $successMessage]);
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            return response()->json(['error' => $errorMessage], 500);
+        }
+
+    }
+
     /**
      * Finaliza el diagnóstico a una entidad
      *
@@ -816,7 +1052,7 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-    public function finalizar_diagnostico(Request $request) {
+    public function finalizar_diagnostico(Request $request) { 
         try {
 
             $validatedData = $request->validate([
@@ -845,65 +1081,6 @@ class DiagnosticoController extends Controller
             }else {  
 
                 $accessToken = decrypt(auth()->user()->google_token);
-                $folderId = "";
-
-                $folderData = [
-                    'name' => $validatedData['codigo'].'_'.$validatedData['nit'].'_'.$validatedData['sigla'].'_'.$validatedData['numero_informe'],
-                    'parents' => [env('FOLDER_GOOGLE')],
-                    'mimeType' => 'application/vnd.google-apps.folder',
-                ];
-
-                $response = Http::withToken($accessToken)->post('https://www.googleapis.com/drive/v3/files', $folderData);
-
-                if ($response->successful()) {
-                    $folder = $response->json();
-                    $folderId = $folder['id'];
-            
-                    if ($request->file('ciclo_vida_diagnostico')) {
-                        $response_files = $this->cargar_documento_individual(
-                            $request->file('ciclo_vida_diagnostico'), 
-                            $folderId,
-                            $visita_inspeccion->id_entidad,
-                            'VISITA DE INSPECCIÓN',
-                            'DOCUMENTO_DIAGNOSTICO',
-                            '',
-                            'DOCUMENTO_DIAGNOSTICO',
-                            $validatedData['id'],
-                        );
-    
-                        if ($response_files['status'] == 'error') {
-                            return response()->json(['error' => $response_files['message']], 500);
-                        }
-                    }
-
-                    if ($request->file('anexo_diagnostico')) {
-
-                        $response_files = $this->cargarArchivosGoogle(
-                            $request->file('anexo_diagnostico'), 
-                            $request->input('nombre_anexo_diagnostico'), 
-                            $folderId,
-                            $visita_inspeccion->id_entidad,
-                            'VISITA DE INSPECCIÓN',
-                            'ANEXO_DOCUMENTO_DIAGNOSTICO',
-                            '',
-                            'ANEXO_DOCUMENTO_DIAGNOSTICO',
-                            $validatedData['id'],
-                        );
-    
-                        if ($response_files['status'] == 'error') {
-                            return response()->json(['error' => $response_files['message']], 500);
-                        }
-                    }
-            
-                } else {
-
-                    if (strpos($response->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
-                        auth()->logout();
-                        return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
-                    }
-                    return response()->json(['error' => $response->json()['error']['message']], 500);
-
-                }
                 
                 $diasFestivosColombia = DiaNoLaboral::pluck('dia')->toArray();
 
@@ -937,7 +1114,7 @@ class DiagnosticoController extends Controller
                     ];
 
                     $responseFolder = Http::withToken($accessToken)
-                                    ->post("https://www.googleapis.com/drive/v3/files/{$folderId}/permissions", $permissionData);
+                                    ->post("https://www.googleapis.com/drive/v3/files/{$visita_inspeccion->carpeta_drive}/permissions", $permissionData);
 
                     if (!$responseFolder->successful()) {
                         return response()->json(['error' => $responseFolder->json()['error']['message']], 500);
@@ -959,7 +1136,7 @@ class DiagnosticoController extends Controller
                         ];
     
                         $responseFolder = Http::withToken($accessToken)
-                            ->post("https://www.googleapis.com/drive/v3/files/{$folderId}/permissions", $permissionData);
+                            ->post("https://www.googleapis.com/drive/v3/files/{$visita_inspeccion->carpeta_drive}/permissions", $permissionData);
     
                             
                                 
@@ -970,14 +1147,13 @@ class DiagnosticoController extends Controller
                     }
                 }
                 
-
                 $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
 
                 $visita_inspeccion->etapa = 'ASIGNACIÓN GRUPO DE INSPECCIÓN';
                 $visita_inspeccion->estado_etapa = $estado_etapa;
                 $visita_inspeccion->fecha_fin_diagnostico = date('Y-m-d');
                 $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
-                $visita_inspeccion->carpeta_drive = $folderId;
+                
                 $visita_inspeccion->save();
 
                 $this->historialInformes($validatedData['id'], 'FINALIZACIÓN DIAGNÓSTICO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observacion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
@@ -990,6 +1166,11 @@ class DiagnosticoController extends Controller
                 $entidad->estado = 'ELIMINADA';        
                 $entidad->motivo = 'diagnóstico cargado';       
                 $entidad->save();       
+
+                //Actualiza sheets
+
+                $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, $nombres_usuarios_grupo[0], $nombres_usuarios_grupo[1], $nombres_usuarios_grupo[2], $nombres_usuarios_grupo[3] ?? NULL, $nombres_usuarios_grupo[4] ?? NULL, $nombres_usuarios_grupo[5] ?? NULL, date('d/m/Y'));
+
 
                 $successMessage = 'Diagnóstico enviado correctamente';
 
@@ -1098,6 +1279,8 @@ class DiagnosticoController extends Controller
                     $permission = $responseFolder->json();
                     $permissionId = $permission['id']; 
 
+                    
+
                     $grupo_visita_inspeccion->permiso_carpeta_drive = $permissionId ;
                     $grupo_visita_inspeccion->save();
                 } 
@@ -1185,11 +1368,25 @@ class DiagnosticoController extends Controller
             }else {
 
                 $estado_etapa = '';
+                $usuario_intendente = [];
 
                 $observaciones = NULL;
 
                 if(!empty($validatedData['observaciones_documento_diagnostico'])){
                     $observaciones = $validatedData['observaciones_documento_diagnostico'];
+                }
+
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id'])
+                                    ->first();
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                }else {
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                                ->get();
                 }
 
                 if ($validatedData['resultado_revision'] === 'No') {
@@ -1206,7 +1403,10 @@ class DiagnosticoController extends Controller
                                                 'mensaje' => 'El informe diagnóstico de la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
                     $validatedData['nit'] . ' requiere ser socializada el día '. $validatedData['ciclo_devolucion_documento_diagnostico'] . ' con las siguientes observaciones: ' . $observaciones ];
 
-                    $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                    //Envío de notificación a la intendencia
+                    foreach($usuarios_intendentes as $usuario){
+                        $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                    }
 
                     $usuarios_intendente = User::where('id', $visita_inspeccion->usuario_creacion)
                                             ->first();
@@ -1269,6 +1469,163 @@ class DiagnosticoController extends Controller
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
 
                 $successMessage = 'Diagnóstico revisado correctamente';
+
+                return response()->json(['message' => $successMessage]);
+            }
+        } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            return response()->json(['error' => $errorMessage], 500);
+        }
+    }
+
+    /**
+     * Registra la socializacion de la visita
+     * 
+     * Se registra el resultado de la socializacion de la visita
+     *
+     * Realiza las siguientes acciones:
+     *  - Valida que la etapa del proceso sea la misma actual
+     *  - guarda acta de visita
+     *  - guarda los anexos adicionales en drive
+     *  - Envía notificación por correo electrónico
+     *  - Actualiza el historial de informes
+     *  - Actualiza los datos de la visita de inspección
+     *  - Actualiza el conteo de días
+     *
+     * @param \Illuminate\Http\Request $request La solicitud HTTP con los datos.
+     * 
+     * @return \Illuminate\Http\JsonResponse Devuelve una respuesta JSON con un mensaje de éxito 
+     *                                       si el registro se crea correctamente o un mensaje 
+     *                                       de error en caso de que falle.
+    */
+
+    public function finalizar_socializar_visita(Request $request){
+
+        try {
+        $proxima_etapa = '';
+        $usuarios = [];
+
+            $validatedData = $request->validate([
+                'id' => 'required',
+                'etapa' => 'required',
+                'estado' => 'required',
+                'estado_etapa' => 'required',
+                'numero_informe' => 'required',
+                'razon_social' => 'required',
+                'nit' => 'required',
+                'producto_generado_socializacion' => 'string|required',
+                'enlace_grabacion_socializacion' => 'string|required_if:producto_generado_socializacion,GRABACIÓN|required_if:producto_generado_socializacion,AMBOS',
+                'acta_asistencia_socializacion.*' => 'file|mimes:pdf,doc,docx,xls,xlsx|required_if:producto_generado_socializacion,DOCUMENTO(S)|required_if:producto_generado_socializacion,AMBOS',
+                
+                'anexo_socializacion_visita.*' => 'file|mimes:pdf,doc,docx,xls,xlsx|required_if:producto_generado_socializacion,DOCUMENTO(S)|required_if:producto_generado_socializacion,AMBOS',
+                'nombre_anexo_socializacion_visita.*' => '',
+                'observaciones' => '',
+            ]);
+
+            $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
+                                                    ->with('etapaProceso')
+                                                    ->first();
+
+            if($visita_inspeccion->etapa !== $validatedData['etapa']){
+                $successMessage = 'Estado de la etapa no permitido';
+                return response()->json(['error' => $successMessage], 404);
+            }else {
+
+                if ($request->file('acta_asistencia_socializacion')) {
+                    $response_files = $this->cargar_documento_individual(
+                        $request->file('acta_asistencia_socializacion'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'ACTA_ASISTENCIA_SOCIALIZACION',
+                        '',
+                        'ACTA_ASISTENCIA_SOCIALIZACION',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+                }
+
+                if ($request->file('anexo_socializacion_visita')) {
+
+                    $response_files = $this->cargarArchivosGoogle(
+                        $request->file('anexo_socializacion_visita'), 
+                        $request->input('nombre_anexo_socializacion_visita'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'ANEXO_SOCIALIZACION_VISITA',
+                        '',
+                        'ANEXO_SOCIALIZACION_VISITA',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+                }
+
+                /*$update_shits = $this->update_sheets($visita_inspeccion->id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL,
+                        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,NULL, NULL, NULL, NULL, date('d/m/Y') );
+
+                if($update_shits['status'] === 'error'){
+                    return response()->json(['error' => $update_shits->json()['error']['message']], 500);
+                }*/
+
+                $proxima_etapa = 'CONFIRMACIÓN REQUERIMIENTO DE INFORMACIÓN PREVIA A LA VISITA';
+
+                $catidad_dias_etapa = Parametro::select('dias')
+                        ->where('estado', $proxima_etapa)
+                        ->first();
+
+                if ($catidad_dias_etapa->dias > 0) {
+                    $estado_etapa = 'VIGENTE';
+                }else{
+                    $estado_etapa = $validatedData['estado_etapa'];
+                }
+
+                $asunto_email = 'Confirmar requerimiento de información previo a la visita '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Confirmar requerimiento de información para la vista de inspección número '. $validatedData['numero_informe'],
+                                                'mensaje' => 'Se requiere que realice la confirmación del requerimiento de información adicional para la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                $validatedData['nit']];
+
+                $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
+                                            ->where('rol', 'Lider de visita')
+                                            ->where('estado', 'ACTIVO')
+                                            ->first();
+
+                $usuario_lider_visita = User::where('id', $usuario_lider_visita->id_usuario)
+                                            ->first();
+
+                $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
+                    
+                $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
+
+                $this->historialInformes($validatedData['id'], 'REGISTRO DE SOCIALIZACIÓN DE VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+
+                $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
+
+                $visita_inspeccion->etapa = $proxima_etapa;
+                $visita_inspeccion->estado_etapa = $estado_etapa;
+                $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
+                $visita_inspeccion->acta_socializacion_visita  = $validatedData['enlace_grabacion_socializacion'];
+                $visita_inspeccion->save();
+
+                $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
+                $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
+
+                $successMessage = 'Se registro la socialización de la visita correctamente';
 
                 return response()->json(['message' => $successMessage]);
             }
@@ -1635,11 +1992,11 @@ class DiagnosticoController extends Controller
                     $successMessage = 'Se envío la notificación para la modificación del plan de visita';
 
                 }elseif($validatedData['revision_plan_visita'] === 'No'){
-                    $proxima_etapa = 'CONFIRMACIÓN REQUERIMIENTO DE INFORMACIÓN PREVIA A LA VISITA';
+                    $proxima_etapa = 'EN REUNIÓN DE SOCIALIZACIÓN DE LA VISITA DE INSPECCIÓN';
 
-                    $asunto_email = 'Confirmar requerimiento de información previa a visita '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'Se requiere que confirme requerimiento de información previa a visita '. $validatedData['numero_informe'],
-                                                'mensaje' => 'Se requiere confirme requerimiento de información previa a visita para la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                    $asunto_email = 'Citar y realizar reunión de socialización de la visita de inspección '.$validatedData['numero_informe'];
+                    $datos_adicionales = ['numero_informe' => 'Citar y realizar reunión de socialización de la visita de inspección '. $validatedData['numero_informe'],
+                                                'mensaje' => 'Se requiere que realice la reunión de socialzación con el grupo de inspección de la visita de inspección a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
                     $validatedData['nit']];
 
                     $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
@@ -1652,20 +2009,47 @@ class DiagnosticoController extends Controller
 
                     $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
 
-                    $usuario_coordinador = User::where('profile', 'Coordinador')
-                                            ->get();
-
-                    foreach ($usuario_coordinador as $coordinador) {
-                        $usuarios[] = ['id' => $coordinador->id, 'nombre' => $coordinador->name];
-                        $this->enviar_correos($coordinador->id, $asunto_email, $datos_adicionales);
-                    }
-
                     $usuarios[] = ['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name];
 
-                    $this->historialInformes($validatedData['id'], 'SOLICITUD DE CONFIRMACIÓN DE INFORMACIÓN ADICIONAL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                    $this->historialInformes($validatedData['id'], 'SOLICITUD DE CITACIÓN A REUNIÓN CON EL GRUPO DE INSPECCIÓN PARA LA SOCIALIZACIÓN DE LA VISITA DE INSPECCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                     $successMessage = 'Se envío la notificación para la confirmación del requerimiento de información previa a la visita';
                 }
+
+                /*
+                    elseif($validatedData['revision_plan_visita'] === 'No'){
+                        $proxima_etapa = 'CONFIRMACIÓN REQUERIMIENTO DE INFORMACIÓN PREVIA A LA VISITA';
+
+                        $asunto_email = 'Confirmar requerimiento de información previa a visita '.$validatedData['numero_informe'];
+                        $datos_adicionales = ['numero_informe' => 'Se requiere que confirme requerimiento de información previa a visita '. $validatedData['numero_informe'],
+                                                    'mensaje' => 'Se requiere confirme requerimiento de información previa a visita para la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                        $validatedData['nit']];
+
+                        $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
+                                                ->where('rol', 'Lider de visita')
+                                                ->where('estado', 'ACTIVO')
+                                                ->first();
+
+                        $usuario_lider_visita = User::where('id', $usuario_lider_visita->id_usuario)
+                                                ->first();
+
+                        $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
+
+                        $usuario_coordinador = User::where('profile', 'Coordinador')
+                                                ->get();
+
+                        foreach ($usuario_coordinador as $coordinador) {
+                            $usuarios[] = ['id' => $coordinador->id, 'nombre' => $coordinador->name];
+                            $this->enviar_correos($coordinador->id, $asunto_email, $datos_adicionales);
+                        }
+
+                        $usuarios[] = ['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name];
+
+                        $this->historialInformes($validatedData['id'], 'SOLICITUD DE CONFIRMACIÓN DE INFORMACIÓN ADICIONAL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+
+                        $successMessage = 'Se envío la notificación para la confirmación del requerimiento de información previa a la visita';
+                    }
+                */
 
                 $catidad_dias_etapa = Parametro::select('dias')
                         ->where('estado', $proxima_etapa)
@@ -1726,6 +2110,7 @@ class DiagnosticoController extends Controller
                 'id' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
+                'id_entidad' => 'required',
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
@@ -1776,6 +2161,7 @@ class DiagnosticoController extends Controller
 
                 }elseif($validatedData['informacion_previa_visita'] === 'No'){
                     $proxima_etapa = 'ELABORACIÓN DE CARTAS DE PRESENTACIÓN';
+                    $usuario_intendente = [];
 
                     $asunto_email = 'Elaborar cartas de presentación para la visita '.$validatedData['numero_informe'];
                     $datos_adicionales = ['numero_informe' => 'Se requiere que realice las cartas de presentación para la visita '. $validatedData['numero_informe'],
@@ -1791,12 +2177,31 @@ class DiagnosticoController extends Controller
                                             ->first();
 
                     $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
-                    $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
 
-                    $usuarios_intendente = User::where('id', $visita_inspeccion->usuario_creacion)
-                                            ->first();
+                    //Consulta de entidad
+                    $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                        ->first();
 
-                    $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name], ['id' => $usuarios_intendente->id, 'nombre' => $usuarios_intendente->name]];
+                    //Busqueda de usuario intendente 
+                    if($entidad->naturaleza_organizacion === 'FONDO'){
+                        $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                    ->get();
+                    }else {
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                                ->get();
+                    }
+
+                    //Current usser
+                    foreach($usuarios_intendentes as $usuario){
+                        $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+                    }
+                    
+                    //Send email
+                    foreach($usuarios_intendentes as $usuario){
+                        $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                    }
+
+                    $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
                     $this->historialInformes($validatedData['id'], 'NEGACIÓN DE REQUERIMIENTO DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observacion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
@@ -2101,7 +2506,7 @@ class DiagnosticoController extends Controller
         $usuarios = [];
 
             $validatedData = $request->validate([
-                'necesidad_visita' => 'required',
+                //'necesidad_visita' => 'required',
                 'id' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
@@ -2109,7 +2514,7 @@ class DiagnosticoController extends Controller
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
-                'ciclo_vida_plan_visita_ajustado' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx|required_if:necesidad_visita,Si',
+                'ciclo_vida_plan_visita_ajustado' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'observaciones_valoracion' => 'nullable',
                 'anexo_validacion_informacion_recibida.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 'nombre_anexo_validacion_informacion_recibida.*' => 'nullable|string',
@@ -2164,7 +2569,7 @@ class DiagnosticoController extends Controller
                     }
                 }
 
-                $proxima_etapa = 'CONFIRMACIÓN DE VISITA DE INSPECCIÓN';
+                $proxima_etapa = 'EN APERTURA DE VISITA DE INSPECCIÓN';
 
                 $catidad_dias_etapa = Parametro::select('dias')
                         ->where('estado', $proxima_etapa)
@@ -2176,37 +2581,26 @@ class DiagnosticoController extends Controller
                     $estado_etapa = $validatedData['estado_etapa'];
                 }
 
-                if ($validatedData['necesidad_visita'] === 'Si') {
+                $asunto_email = 'Realizar apertura de la visita de inspección '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Realizar apertura de la visita de inspección '. $validatedData['numero_informe'],
+                                            'mensaje' => 'Se requiere que realice la apertura de la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                $validatedData['nit'] ];
 
-                    $asunto_email = 'Confirmar visita de inspección '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'Confirmar visita de inspección '. $validatedData['numero_informe'],
-                                                'mensaje' => 'Se ha realizado la valoración de la información por parte del lider de la visita, para la visita de inspección '. 
-                                                $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                                                $validatedData['nit'] . ' para la cual se actualizó el plan de visita. Se requiere que ingrese a la plataforma y confirme si se realizará la visita de inspección'];
+                $usuario_lider_visita = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
+                                        ->where('rol', 'Lider de visita')
+                                        ->where('estado', 'ACTIVO')
+                                        ->first();
 
-                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones_valoracion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                $usuario_lider_visita = User::where('id', $usuario_lider_visita->id_usuario)
+                                        ->first();
 
-                }elseif($validatedData['necesidad_visita'] === 'No'){
-                    $asunto_email = 'Confirmar visita de inspección '.$validatedData['numero_informe'];
-                    $datos_adicionales = ['numero_informe' => 'Confirmar visita de inspección '. $validatedData['numero_informe'],
-                                                'mensaje' => 'Se ha realizado la valoración de la información por parte del lider de la visita, para la visita de inspección '. 
-                                                $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                                                $validatedData['nit'] . ' para la cual se identifico que no se requiere la visita de inspección con la siguiente obervación '.$validatedData['observaciones_valoracion']. 
-                                                ' Se requiere que ingrese a la plataforma y confirme si se realizará la visita de inspección'];
+                $this->enviar_correos($usuario_lider_visita->id, $asunto_email, $datos_adicionales);   
+                
+                $usuarios = [['id' => $usuario_lider_visita->id, 'nombre' => $usuario_lider_visita->name]];
 
-                    $this->historialInformes($validatedData['id'], 'CONFIRMACIÓN DE INFORMACIÓN PREVIA A LA VISITA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones_valoracion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
-                }
+                $this->historialInformes($validatedData['id'], 'CARGUE DE PLAN DE VISITA AJUSTADO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones_valoracion'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
-                $usuarios_coordinadores = User::where('profile', 'Coordinador')
-                                                ->get();
-
-                foreach ($usuarios_coordinadores as $usuario) {
-                    $usuarios[] = ['id' => $usuario->id, 'nombre' => $usuario->name];
-
-                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
-                }
-
-                $successMessage = 'Se envío la notificación para la confirmación de la visita';
+                $successMessage = 'Se envió la soliditud de apertura de la visita correctamente';
 
                 $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
 
@@ -2396,7 +2790,6 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-
     public function cartas_presentacion(Request $request){
 
         try {
@@ -2513,11 +2906,9 @@ class DiagnosticoController extends Controller
                 'razon_social' => 'required',
                 'nit' => 'required',
                 'observaciones' => 'nullable|string',
-                'documento_apertura_visita' => 'required|string',
+                
                 'nombre_anexo_abrir_visita.*' => 'nullable|string',
                 'anexo_abrir_visita.*' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
-                'acta_apertura_visita' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx|required_if:documento_apertura_visita,Acta de apertura',
-                'grabacion_apertura_visita' => 'required_if:documento_apertura_visita,Grabación de apertura',
                 'carta_salvaguarda' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
             ]);
 
@@ -2530,26 +2921,7 @@ class DiagnosticoController extends Controller
                 return response()->json(['error' => $successMessage], 404);
             }else {
 
-                if ($request->file('acta_apertura_visita')) {
-                    $response_files = $this->cargar_documento_individual(
-                        $request->file('acta_apertura_visita'), 
-                        $visita_inspeccion->carpeta_drive,
-                        $visita_inspeccion->id_entidad,
-                        'VISITA DE INSPECCIÓN',
-                        'ACTA_APERTURA_VISITA',
-                        '',
-                        'ACTA_APERTURA_VISITA',
-                        $validatedData['id'],
-                    );
-
-                    if ($response_files['status'] == 'error') {
-                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
-                            auth()->logout();
-                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
-                        }
-                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
-                    }
-                }
+                
 
                 if ($request->file('carta_salvaguarda')) {
                     $response_files = $this->cargar_documento_individual(
@@ -2667,7 +3039,7 @@ class DiagnosticoController extends Controller
 
                 $usuarios[] = ['id' => $usuarios_lider_visita->id, 'nombre' => $usuarios_lider_visita->name];
 
-                $proxima_etapa = 'PENDIENTE INICIO DE VISITA DE INSPECCIÓN';
+                $proxima_etapa = 'EN DESARROLLO DE VISITA DE INSPECCIÓN';
 
                 $catidad_dias_etapa = Parametro::select('dias')
                         ->where('estado', $proxima_etapa)
@@ -2678,6 +3050,45 @@ class DiagnosticoController extends Controller
                 }else{
                     $estado_etapa = $validatedData['estado_etapa'];
                 }
+
+                $asunto_email = 'Se acaba de dar inicio a la visita de inspección '.$validatedData['numero_informe'];
+                $datos_adicionales = ['numero_informe' => 'Se acaba de dar inicio a la visita de inspección '. $validatedData['numero_informe'],
+                                            'mensaje' => 'Se acaba de dar inicio a la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
+                $validatedData['nit'] ];
+
+
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id'])
+                                    ->first();
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                                $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                            ->get();
+                }else {
+                                $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                                            ->get();
+                }
+
+                //Envío de notificación a la intendencia
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
+
+                $usuarios_coordinadores = User::where('profile', 'Coordinador')
+                                                ->get();
+
+                foreach ($usuarios_coordinadores as $usuario_coordinador) {
+                    $this->enviar_correos($usuario_coordinador->id, $asunto_email, $datos_adicionales);
+                }
+
+                $usuarios_delegados = User::where('profile', 'Delegado')
+                                                ->get();
+
+                foreach ($usuarios_delegados as $usuario_delegado) {
+                    $this->enviar_correos($usuario_delegado->id, $asunto_email, $datos_adicionales);
+                }
+
 
                 $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
 
@@ -2765,26 +3176,7 @@ class DiagnosticoController extends Controller
                     $estado_etapa = $validatedData['estado_etapa'];
                 }
 
-                $asunto_email = 'Se acaba de dar inicio a la visita de inspección '.$validatedData['numero_informe'];
-                $datos_adicionales = ['numero_informe' => 'Se acaba de dar inicio a la visita de inspección '. $validatedData['numero_informe'],
-                                            'mensaje' => 'Se acaba de dar inicio a la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
-                $validatedData['nit'] ];
-
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
                 
-                $usuarios_coordinadores = User::where('profile', 'Coordinador')
-                                                ->get();
-
-                foreach ($usuarios_coordinadores as $usuario_coordinador) {
-                    $this->enviar_correos($usuario_coordinador->id, $asunto_email, $datos_adicionales);
-                }
-
-                $usuarios_delegados = User::where('profile', 'Delegado')
-                                                ->get();
-
-                foreach ($usuarios_delegados as $usuario_delegado) {
-                    $this->enviar_correos($usuario_delegado->id, $asunto_email, $datos_adicionales);
-                }
 
                 $grupo_inspeccion = GrupoVisitaInspeccion::where('id_informe', $validatedData['id'])
                                 ->whereIn('rol', ['Lider de visita', 'Inspector'])
@@ -2854,6 +3246,7 @@ class DiagnosticoController extends Controller
                 'id' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
+                'id_entidad' => 'required',
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
@@ -2890,6 +3283,9 @@ class DiagnosticoController extends Controller
                 'nombre_documento_cierre_visita_FT-SUPE-029_noobligat.*' => 'nullable|string',
                 'enlace_documento_cierre_visita_FT-SUPE-029_noobligat.*' => 'nullable|file|max:6000|mimes:pdf,doc,docx,xls,xlsx',
                 
+                'documento_apertura_visita' => 'required|string',
+                'acta_apertura_visita' => 'file|max:6000|mimes:pdf,doc,docx,xls,xlsx|required_if:documento_apertura_visita,Acta de apertura',
+                'grabacion_apertura_visita' => 'required_if:documento_apertura_visita,Grabación de apertura',
             ]);
 
             $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -2900,6 +3296,27 @@ class DiagnosticoController extends Controller
                 $successMessage = 'Estado de la etapa no permitido';
                 return response()->json(['error' => $successMessage], 404);
             }else {
+
+                if ($request->file('acta_apertura_visita')) {
+                    $response_files = $this->cargar_documento_individual(
+                        $request->file('acta_apertura_visita'), 
+                        $visita_inspeccion->carpeta_drive,
+                        $visita_inspeccion->id_entidad,
+                        'VISITA DE INSPECCIÓN',
+                        'ACTA_APERTURA_VISITA',
+                        '',
+                        'ACTA_APERTURA_VISITA',
+                        $validatedData['id'],
+                    );
+
+                    if ($response_files['status'] == 'error') {
+                        if (strpos($response_files->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                            auth()->logout();
+                            return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+                        }
+                        return response()->json(['error' => $response_files->json()['error']['message']], 500);
+                    }
+                }
 
                 $FT_SUPE_016 = 'NO';
                 $FT_SUPE_020 = 'NO';
@@ -3195,8 +3612,24 @@ class DiagnosticoController extends Controller
                     $this->enviar_correos($usuario_delegado->id, $asunto_email, $datos_adicionales);
                 }
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
-                
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                }else {
+                $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
+
                 $usuarios_coordinadores = User::where('profile', 'Coordinador')
                                                 ->get();
 
@@ -3359,6 +3792,7 @@ class DiagnosticoController extends Controller
                 'id' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
+                'id_entidad' => 'required',
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
@@ -3386,8 +3820,24 @@ class DiagnosticoController extends Controller
                                             'mensaje' => $userName.' lider de la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
                 $validatedData['nit']. ', solicita adicionar '. $validatedData['dias']. ' días adicionales para dar cierre a la visita de inspección con las siguientes observaciones: '. $validatedData['observaciones'] ];
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
-                
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                    ->first();
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                }else {
+                $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
+
                 $usuarios_coordinadores = User::where('profile', 'Coordinador')
                                                 ->get();
 
@@ -4816,10 +5266,10 @@ class DiagnosticoController extends Controller
     public function revision_informe_final_coordinaciones(Request $request){
         try {
         $proxima_etapa = '';
-        $usuarios = [];
 
             $validatedData = $request->validate([
                 'id' => 'required',
+                'id_entidad' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
                 'estado_etapa' => 'required',
@@ -4902,18 +5352,39 @@ class DiagnosticoController extends Controller
                                         $validatedData['nit'] . ' con las siguientes observaciones: ' . $validatedData['observaciones']
                                     ];
 
-                $successMessage = 'Se envía notificación a al intendente para la verificación del informe final';
+                $successMessage = 'Se envía notificación a la intendencia para la verificación del informe final';
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                $usuario_intendente = [];
 
-                $usuarios_intendente = User::where('id', $visita_inspeccion->usuario_creacion)
-                                            ->first();
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
 
-                $usuarios[] = ['id' => $usuarios_intendente->id, 'nombre' => $usuarios_intendente->name]; 
-                    
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                            ->get();
+                }else {
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
+
+                //Current usser
+                foreach($usuarios_intendentes as $usuario){
+                    $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+                }
+
+                $visita_inspeccion->usuario_actual = json_encode($usuario_intendente);
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
+
                 $this->historialInformes($validatedData['id'], 'ENVÍO DE PROYECTO DE INFORME FINAL DE LA VISITA DE INSPECCIÓN A INTENDECIA', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
-                $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
+                $usuariosSinDuplicados = collect($usuario_intendente)->unique('id')->values()->all();
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
@@ -5104,6 +5575,7 @@ class DiagnosticoController extends Controller
 
             $validatedData = $request->validate([
                 'id' => 'required',
+                'id_entidad' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
                 'estado_etapa' => 'required',
@@ -5223,14 +5695,33 @@ class DiagnosticoController extends Controller
                                                 'mensaje' => 'Se requiere de su confirmación si la visita de inspección '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['razon_social'] . ' identificada con el nit '.
                     $validatedData['nit'].', requiere medida de intervención inmediata.'];
 
-                    $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales); 
+                    $usuario_intendente = [];
 
-                    $usuario = User::where('id', $visita_inspeccion->usuario_creacion)
+                    //Consulta de entidad
+                    $entidad = Entidad::where('id', $validatedData['id_entidad'])
                                     ->first();
 
-                    $usuarios[] = ['id' => $usuario->id, 'nombre' => $usuario->name];
 
-                    $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
+                    //Busqueda de usuario intendente 
+                    if($entidad->naturaleza_organizacion === 'FONDO'){
+                        $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                    }else {
+                        $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                                ->get();
+                    }
+
+                    //Current usser
+                    foreach($usuarios_intendentes as $usuario){
+                        $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+                    }
+
+                    //Send email
+                    foreach($usuarios_intendentes as $usuario){
+                        $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                    }
+
+                    $usuariosSinDuplicados = collect($usuario_intendente)->unique('id')->values()->all();
 
                     $visita_inspeccion->usuario_actual = json_encode($usuariosSinDuplicados);
                 }
@@ -5572,7 +6063,7 @@ class DiagnosticoController extends Controller
 
                 $usuarios = [];
 
-                $grupo_inspeccion = GrupoVisitaInspeccion::where('estado', 'ACTIVO')
+                /*$grupo_inspeccion = GrupoVisitaInspeccion::where('estado', 'ACTIVO')
                     ->where('id_informe', $validatedData['id'])
                     ->get();
 
@@ -5597,17 +6088,23 @@ class DiagnosticoController extends Controller
                     $usuariosNombres .= $usuario['nombre'] . ', ';
                 }
 
-                $usuariosNombres = rtrim($usuariosNombres, ', ');
+                $usuariosNombres = rtrim($usuariosNombres, ', ');*/
 
                 $asunto_email = 'Envío de oficio de traslado de la visita ' .$validatedData['numero_informe'];
                 $datos_adicionales = ['numero_informe' => 'Envío de oficio de traslado de la visita '. $validatedData['numero_informe'],
-                                                    'mensaje' => 'Se realizó el envío del oficio de traslado a los usuarios '. $usuariosNombres .', para la visita de inspección identificada con el número ' . $validatedData['numero_informe']. ' a la entidad '
-                                                    . $validatedData['razon_social'] . ' identificada con el nit ' . $validatedData['nit'] . ', el memorando de traslado se encuentra en el ciclo de vida '. $validatedData['ciclo_informe_traslado']];
+                                                    'mensaje' => 'Se realizó el envío del oficio de traslado a la empresa solidaria '
+                                                    . $validatedData['razon_social'] . ' identificada con el nit ' . $validatedData['nit'] ];
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                $usuarios_coordinador = User::where('profile', 'Coordinador')
+                                        ->get();
 
+                foreach ($usuarios_coordinador as $key => $usuario_coordinador) {
+                    $this->enviar_correos($usuario_coordinador->id, $asunto_email, $datos_adicionales);
 
-                $proxima_etapa = 'EN PROYECCIÓN DEL OFICIO DE TRASLADO DEL INFORME';
+                    $usuarios[] = ['id' => $usuario_coordinador->id, 'nombre' => $usuario_coordinador->name];
+                }
+
+                $proxima_etapa = 'EN ESPERA DE PRONUNCIAMIENTO DE LA ORGANIZACIÓN SOLIDARIA';
 
                 $catidad_dias_etapa = Parametro::select('dias')
                         ->where('estado', $proxima_etapa)
@@ -5627,11 +6124,11 @@ class DiagnosticoController extends Controller
                 $visita_inspeccion->save();
 
                 $this->historialInformes($validatedData['id'], 'ENVÍO DE MEMORANDO DE OFICIO DE TRASLADO', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['ciclo_informe_traslado'], NULL, NULL, '', NULL);
-
-                $this->conteoDias($visita_inspeccion->id, 'EN PROYECCIÓN DEL OFICIO DE TRASLADO DEL INFORME', date('Y-m-d'), NULL);
+                
+                $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
 
-                $successMessage = 'Se envío notificación de memorando de oficio de traslado a las coordinaciones, intendencia, superintendencias delegadas y usuarios del grupo de inspección';
+                $successMessage = 'Se envío notificación de memorando de oficio de traslado a la coordinación.';
 
                 return response()->json(['message' => $successMessage]);
             }
@@ -6116,15 +6613,16 @@ class DiagnosticoController extends Controller
         try {
 
         $proxima_etapa = '';
-        $usuarios = [];
 
             $validatedData = $request->validate([
                 'id' => 'required',
+                'id_entidad' => 'required',
                 'etapa' => 'required',
                 'estado' => 'required',
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
+                'id_entidad' => 'required',
                 'nit' => 'required',
                 'ciclo_informe_final_hallazgos' => 'required',
                 'radicado_memorando_traslado' => 'required',
@@ -6192,19 +6690,36 @@ class DiagnosticoController extends Controller
                                                     'mensaje' => 'Citar a comité interno evaluador de la visita '. $validatedData['numero_informe'] . ' a la entidad '. $validatedData['ciclo_informe_final_hallazgos'] . ' identificada con el nit '.
                                         $validatedData['nit']];
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales); 
+                $usuario_intendente = [];
 
-                $usuario = User::where('id', $visita_inspeccion->usuario_creacion)
-                ->first();
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
 
-                $usuarios[] = ['id' => $usuario->id, 'nombre' => $usuario->name];
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                            ->get();
+                }else {
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
 
+                //Current usser
+                foreach($usuarios_intendentes as $usuario){
+                    $usuario_intendente[] = ['id' => $usuario->id, 'nombre' => $usuario->name, 'rol' => 'Intendente' ];
+                }
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
 
                 $this->historialInformes($validatedData['id'], 'REGISTRO DE TRASLADO DEL RESULTADO DE LA EVALUCIÓN DE LA RESPUESTA DEL INFORME FINAL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), '', $validatedData['estado_etapa'], $validatedData['ciclo_informe_final_hallazgos'], NULL, NULL, '', NULL);
 
                 $successMessage = 'Se registro el envío del informe con los hallazgos finales correctamente';
 
-                $usuariosSinDuplicados = collect($usuarios)->unique('id')->values()->all();
+                $usuariosSinDuplicados = collect($usuario_intendente)->unique('id')->values()->all();
 
                 $visita_inspeccion->etapa = $proxima_etapa;
                 $visita_inspeccion->estado_etapa = $estado_etapa;
@@ -6779,9 +7294,9 @@ class DiagnosticoController extends Controller
             'nit' => 'required',
         ]);
 
-        $templatePath = public_path('templates/FTSUPE058TablerodecontrolvisistasdeinspeccinV1.xlsx');
+        //$templatePath = public_path('templates/FTSUPE058TablerodecontrolvisistasdeinspeccinV1.xlsx');
 
-        $spreadsheet = IOFactory::load($templatePath);
+        //$spreadsheet = IOFactory::load($templatePath);
 
 
         $visita_inspeccion = VisitaInspeccion::where('id', $validatedData['id'])
@@ -6789,7 +7304,7 @@ class DiagnosticoController extends Controller
                                                             'grupoInspeccion')
                                                     ->first();
 
-            $sheet = $spreadsheet->getActiveSheet();
+        /*    $sheet = $spreadsheet->getActiveSheet();
             $sheet->setCellValue('B7', '1');
             $sheet->setCellValue('C7', '');
             $sheet->setCellValue('D7', $visita_inspeccion->entidad->codigo_entidad);
@@ -6889,7 +7404,7 @@ class DiagnosticoController extends Controller
 
         $outputPath = storage_path('app/public/nuevo_archivo.xlsx');
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $writer->save($outputPath);
+        $writer->save($outputPath);*/
 
         if($validatedData['etapa'] === 'EN DILIGENCIAMIENTO DEL TABLERO DE CONTROL'){
             $visita_inspeccion->estado_etapa = 'FINALIZADO';
@@ -6900,12 +7415,14 @@ class DiagnosticoController extends Controller
 
             $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
 
-            $this->historialInformes($validatedData['id'], 'DESCARGA DEL TABLERO DE CONTROL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), NULL, $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+            $this->historialInformes($validatedData['id'], 'DILIGENCIAMIENTO DEL TABLERO DE CONTROL', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), NULL, $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
             $this->historialInformes($validatedData['id'], 'FINALIZACIÓNN DE LA VISITA DE INSPECCIÓN', 'FINALIZADO', 'FINALIZADO', date('Y-m-d'), NULL, 'FINALIZADO', '', NULL, NULL, '', NULL);
+
+            $successMessage = 'Se registro el diligenciamiento del tablero correctamente';
 
         }
 
-        return response()->download($outputPath, 'tablero.xlsx', [], 'inline');
+        return response()->json(['message' => $successMessage]);
     }
 
     /**
@@ -7159,6 +7676,7 @@ class DiagnosticoController extends Controller
                 'etapa' => 'required',
                 'estado' => 'required',
                 'estado_etapa' => 'required',
+                'id_entidad' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
                 'nit' => 'required',
@@ -7202,9 +7720,25 @@ class DiagnosticoController extends Controller
                     $this->enviar_correos($persona->id, $asunto_email, $datos_adicionales); 
                 }
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                ->first();
 
-                $this->historialInformes($validatedData['id'], 'SUSPENCIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                }else {
+                $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
+
+                $this->historialInformes($validatedData['id'], 'SUSPENSIÓN', $validatedData['etapa'], $validatedData['estado'], date('Y-m-d'), $validatedData['observaciones'], $validatedData['estado_etapa'], '', NULL, NULL, '', NULL);
 
                 $this->conteoDias($visita_inspeccion->id, $proxima_etapa, date('Y-m-d'), NULL);
                 $this->actualizarConteoDias($visita_inspeccion->id, $validatedData['etapa'], date('Y-m-d'));
@@ -7255,6 +7789,7 @@ class DiagnosticoController extends Controller
                 'estado_etapa' => 'required',
                 'numero_informe' => 'required',
                 'razon_social' => 'required',
+                'id_entidad' => 'required',
                 'nit' => 'required',
                 'observaciones' => 'required',
             ]);
@@ -7303,7 +7838,23 @@ class DiagnosticoController extends Controller
                     $this->enviar_correos($persona->id, $asunto_email, $datos_adicionales); 
                 }
 
-                $this->enviar_correos($visita_inspeccion->usuario_creacion, $asunto_email, $datos_adicionales);
+                //Consulta de entidad
+                $entidad = Entidad::where('id', $validatedData['id_entidad'])
+                                    ->first();
+
+                //Busqueda de usuario intendente 
+                if($entidad->naturaleza_organizacion === 'FONDO'){
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de fondos de empleados')
+                                                ->get();
+                }else {
+                    $usuarios_intendentes = User::where('profile', 'Intendencia de cooperativas y otras organizaciones solidarias')
+                                            ->get();
+                }
+
+                //Send email
+                foreach($usuarios_intendentes as $usuario){
+                    $this->enviar_correos($usuario->id, $asunto_email, $datos_adicionales);
+                }
 
                 $successMessage = 'Se reanudo la visita de inspección correctamente';
 
@@ -8113,7 +8664,7 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-    public function create_sheets($a, $b, $c) {
+    public function create_sheets($a, $b, $c=NULL, $d, $e=NULL, $f=NULL, $g=NULL, $h=NULL, $i=NULL, $j=NULL, $k=NULL, $l, $m, $n, $o) {
         $accessToken = decrypt(auth()->user()->google_token);
         $spreadsheetId = env('LIBRO_SHEETS_VISITAS_ASOCIATIVA');
 
@@ -8132,7 +8683,7 @@ class DiagnosticoController extends Controller
 
         $values = [
             [
-                $a, $b, $c
+                $a, $b, $c, $d, $e, $f, $g, $h, $i, $j, $k, $l, $m, $n, $o
             ],
         ];
     
@@ -8176,10 +8727,15 @@ class DiagnosticoController extends Controller
      *                                       de error en caso de que falle.
     */
 
-    public function update_sheets($id, $a = NULL, $b = NULL, $c = NULL, $d = NULL, $q = NULL, $r = NULL, $s = NULL, $t = NULL, $u = NULL, $v = NULL, $w = NULL, $x = NULL, $z = NULL, 
-    $ac = NULL, $ae = NULL, $af = NULL, $ag = NULL, $ah = NULL, $ai = NULL, $aj = NULL, $ak = NULL, $al = NULL, $am = NULL, $an = NULL, $ao = NULL, $ap = NULL, $aq = NULL, $ar = NULL, $as = NULL, $at = NULL, $au = NULL, $av = NULL, $aw = NULL, $ax = NULL, $ay = NULL, $az = NULL,
-    $ba = NULL, $bb = NULL, $bc = NULL, $bd = NULL, $be = NULL, $bf = NULL, $bg = NULL, $bh = NULL, $bi = NULL, $bj = NULL, $bk = NULL, $bl = NULL, $bm = NULL, $bn = NULL, $bo = NULL, $bp = NULL, $bq = NULL, $br = NULL, $bs = NULL, $bt = NULL, $bu = NULL,
-    $bv = NULL,  $bw = NULL, $bx = NULL, $by = NULL,  $bz = NULL, $ca = NULL, $cb = NULL, $ab = NULL) {
+    public function update_sheets($id, $a = NULL, $b = NULL, $c = NULL, $d = NULL, $e = NULL, $f = NULL, $g = NULL, $h = NULL, $i = NULL, $j = NULL, $k = NULL, $l = NULL,
+    $m = NULL, $n = NULL, $o = NULL, $p = NULL, $q = NULL, $r = NULL, $s = NULL, $t = NULL, $u = NULL, $v = NULL, $w = NULL, $x = NULL, $y = NULL, $z = NULL,
+    $aa = NULL, $ab = NULL, $ac = NULL, $ad = NULL, $ae = NULL, $af = NULL, $ag = NULL, $ah = NULL, $ai = NULL, $aj = NULL, $ak = NULL, $al = NULL,
+    $am = NULL, $an = NULL, $ao = NULL, $ap = NULL, $aq = NULL, $ar = NULL, $as = NULL, $at = NULL, $au = NULL, $av = NULL, $aw = NULL, $ax = NULL, $ay = NULL, $az = NULL,
+    $ba = NULL, $bb = NULL, $bc = NULL, $bd = NULL, $be = NULL, $bf = NULL, $bg = NULL, $bh = NULL, $bi = NULL, $bj = NULL, $bk = NULL, $bl = NULL,
+    $bm = NULL, $bn = NULL, $bo = NULL, $bp = NULL, $bq = NULL, $br = NULL, $bs = NULL, $bt = NULL, $bu = NULL, $bv = NULL, $bw = NULL, $bx = NULL, $by = NULL, $bz = NULL,
+    $ca = NULL, $cb = NULL, $cc = NULL, $cd = NULL, $ce = NULL, $cf = NULL, $cg = NULL, $ch = NULL, $ci = NULL, $cj = NULL, $ck = NULL, $cl = NULL,
+    $cm = NULL, $cn = NULL, $co = NULL, $cp = NULL, $cq = NULL, $cr = NULL, $cs = NULL, $ct = NULL, $cu = NULL, $cv = NULL, $cw = NULL, $cx = NULL, $cy = NULL, $cz = NULL,
+    ) {
         $accessToken = decrypt(auth()->user()->google_token);
         $spreadsheetId = env('LIBRO_SHEETS_VISITAS_ASOCIATIVA');
     
@@ -8517,6 +9073,26 @@ class DiagnosticoController extends Controller
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
             return response()->json(['error' => $errorMessage], 500);
+        }
+    }
+
+    public function validateDrive(){
+        // Acceso a Google Drive
+        $accessToken = decrypt(auth()->user()->google_token);
+        
+        // Prueba de conexión a Google Drive
+        $driveTestResponse = Http::withToken($accessToken)->get('https://www.googleapis.com/drive/v3/files', [
+            'pageSize' => 1
+        ]);
+
+        if (!$driveTestResponse->successful()) {
+            if (strpos($driveTestResponse->json()['error']['message'], 'Expected OAuth 2 access token') !== false) {
+                auth()->logout();
+                return response()->json(['error' => 'Sesión cerrada por problemas de autenticación. Por favor, vuelva a iniciar sesión.'], 401);
+            }
+            return response()->json(['error' => 'Error de conexión con Google Drive: ' . $driveTestResponse->json()['error']['message']], 500);
+        }else{
+            return response()->json(['message' => 'Conexión con Google Drive establecida correctamente'], 200);
         }
     }
     
