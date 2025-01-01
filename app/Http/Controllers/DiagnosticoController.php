@@ -8760,6 +8760,8 @@ class DiagnosticoController extends Controller
                 break;
             }
         }
+
+        dd('Hello world');
     
         if (!$rowNumber) {
             return [
@@ -8768,13 +8770,12 @@ class DiagnosticoController extends Controller
             ];
         }
     
-        $updateRange = 'CONSOLIDADO!A'.$rowNumber.':CD'.$rowNumber;
+        $updateRange = 'CONSOLIDADO!A'.$rowNumber.':CZ'.$rowNumber;
     
         $updateValues = [
             [
-                $a, $b, $c, $d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $q, $r, $s, $t, $u, $v, $w, $x, NULL, $z,
-                NULL, $ab, $ac, NULL, $ae, $af, $ag, $ah, $ai, $aj, $ak, $al, $am, $an, $ao, $ap, $aq, $ar, $as, $at, $au, $av, $aw, $ax, $ay, $az,
-                $ba, $bb, $bc, $bd, $be, $bf, $bg, $bh, $bi, $bj, $bk, $bl, $bm, $bn, $bo, $bp, $bq, $br, $bs, $bt, $bu, $bv,  $bw, $bx, $by,  $bz, $ca, $cb
+                $a, $b, $c, $d, $e, $d, $d, $d, $d, $d, $d, $d, $d, $d, $d, $d, $d, $q, $r, $s, $t, $u, $v, $w, $x,  $d,, $z,
+
             ],
         ];
     

@@ -17,3 +17,5 @@ class Lugares extends Model
         'ciudad',
     ];
 }
+
+dd('Hola mundoooooo');
