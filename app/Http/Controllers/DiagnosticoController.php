@@ -8760,8 +8760,6 @@ class DiagnosticoController extends Controller
                 break;
             }
         }
-
-        dd('Hello world');
     
         if (!$rowNumber) {
             return [
